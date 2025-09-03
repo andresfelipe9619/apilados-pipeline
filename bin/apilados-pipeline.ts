@@ -1,20 +1,23 @@
 #!/usr/bin/env node
+import 'source-map-support/register';
 import * as cdk from 'aws-cdk-lib';
 import { ApiladosPipelineStack } from '../lib/apilados-pipeline-stack';
 
 const app = new cdk.App();
 new ApiladosPipelineStack(app, 'ApiladosPipelineStack', {
-  /* If you don't specify 'env', this stack will be environment-agnostic.
-   * Account/Region-dependent features and context lookups will not work,
-   * but a single synthesized template can be deployed anywhere. */
+  env: {
+    account: process.env.CDK_DEFAULT_ACCOUNT,
+    region: process.env.CDK_DEFAULT_REGION,
+  },
 
-  /* Uncomment the next line to specialize this stack for the AWS Account
-   * and Region that are implied by the current CLI configuration. */
-  // env: { account: process.env.CDK_DEFAULT_ACCOUNT, region: process.env.CDK_DEFAULT_REGION },
-
-  /* Uncomment the next line if you know exactly what Account and Region you
-   * want to deploy the stack to. */
-  // env: { account: '123456789012', region: 'us-east-1' },
-
-  /* For more information, see https://docs.aws.amazon.com/cdk/latest/guide/environments.html */
+  // 👇 tweak these to your needs
+  params: {
+    bucketPrefix: 'apilados',           // bucket name prefix
+    s3KeyPrefix: 'incoming/',           // only trigger on this prefix
+    instanceIds: ['i-0123456789abcdef0'], // EC2s to start/stop
+    startCron: 'cron(0 12 ? * MON-FRI *)', // 12:00 UTC Mon–Fri
+    stopCron:  'cron(0 23 ? * MON-FRI *)', // 23:00 UTC Mon–Fri
+    strapiBaseUrl: 'https://api.example.com',
+    strapiTokenSsmParam: '/apilados/STRAPI_TOKEN', // store token in SSM
+  },
 });
