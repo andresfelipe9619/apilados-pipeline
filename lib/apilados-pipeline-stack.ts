@@ -71,9 +71,6 @@ export class ApiladosPipelineStack extends Stack {
 
     // IAM for ingest: read S3, get token from SSM
     bucket.grantRead(ingestFn);
-    ssm.StringParameter.fromStringParameterName(
-      this, 'StrapiTokenParam', p.strapiTokenSsmParam,
-    ).grantRead(ingestFn);
 
     // S3 → Lambda notification (prefix .csv)
     ingestFn.addEventSource(new eventSources.S3EventSource(bucket, {

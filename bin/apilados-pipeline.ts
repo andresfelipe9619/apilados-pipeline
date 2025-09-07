@@ -14,7 +14,7 @@ new ApiladosPipelineStack(app, 'ApiladosPipelineStack', {
   params: {
     bucketPrefix: 'apilados',           // bucket name prefix
     s3KeyPrefix: 'incoming/',           // only trigger on this prefix
-    instanceIds: ['i-0123456789abcdef0'], // EC2s to start/stop
+    instanceIds: ['i-0547f3e820aa14a73'], // EC2s to start/stop
     startCron: 'cron(0 12 ? * MON-FRI *)', // 12:00 UTC Mon–Fri
     stopCron:  'cron(0 23 ? * MON-FRI *)', // 23:00 UTC Mon–Fri
     strapiBaseUrl: 'https://api.example.com',
