@@ -16,12 +16,42 @@ const streamToString = async (stream: Readable) =>
     stream.on("end", () => resolve(Buffer.concat(chunks).toString("utf-8")));
   });
 
-export const handler: S3Handler = async (event: S3Event) => {
+export async function processCsv(csv: string): Promise<number> {
   const headers = {
     "Content-Type": "application/json",
     Authorization: `Bearer ${STRAPI_TOKEN}`,
   };
 
+  // parse CSV (simple split; replace with robust parser if needed)
+  const [headerLine, ...lines] = csv.trim().split("\n");
+  const headersCsv = headerLine.split(",").map((h) => h.trim());
+
+  // chunk & upsert
+  for (let i = 0; i < lines.length; i += CHUNK_SIZE) {
+    const slice = lines.slice(i, i + CHUNK_SIZE).map((line) => {
+      const cols = line.split(",").map((v) => v.trim());
+      const rec: Record<string, string> = {};
+      headersCsv.forEach((h, idx) => (rec[h] = cols[idx] ?? ""));
+      return rec;
+    });
+
+    // Example: POST to Strapi collection `apilados`
+    const res = await fetch(`${STRAPI_BASE_URL}/api/apilados/bulk-upsert`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ data: slice }),
+    });
+
+    if (!res.ok) {
+      const body = await res.text();
+      console.error("Strapi error", res.status, body);
+      throw new Error(`Strapi failed: ${res.status}`);
+    }
+  }
+  return lines.length;
+}
+
+export const handler: S3Handler = async (event: S3Event) => {
   for (const r of event.Records) {
     const bucket = r.s3.bucket.name;
     const key = decodeURIComponent(r.s3.object.key);
@@ -31,33 +61,7 @@ export const handler: S3Handler = async (event: S3Event) => {
       new GetObjectCommand({ Bucket: bucket, Key: key }),
     );
     const csv = await streamToString(obj.Body as Readable);
-
-    // parse CSV (simple split; replace with robust parser if needed)
-    const [headerLine, ...lines] = csv.trim().split("\n");
-    const headersCsv = headerLine.split(",").map((h) => h.trim());
-
-    // chunk & upsert
-    for (let i = 0; i < lines.length; i += CHUNK_SIZE) {
-      const slice = lines.slice(i, i + CHUNK_SIZE).map((line) => {
-        const cols = line.split(",").map((v) => v.trim());
-        const rec: Record<string, string> = {};
-        headersCsv.forEach((h, idx) => (rec[h] = cols[idx] ?? ""));
-        return rec;
-      });
-
-      // Example: POST to Strapi collection `apilados`
-      const res = await fetch(`${STRAPI_BASE_URL}/api/apilados/bulk-upsert`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ data: slice }),
-      });
-
-      if (!res.ok) {
-        const body = await res.text();
-        console.error("Strapi error", res.status, body);
-        throw new Error(`Strapi failed: ${res.status}`);
-      }
-    }
-    console.log(`Processed: s3://${bucket}/${key} (${lines.length} rows)`);
+    const processedRows = await processCsv(csv);
+    console.log(`Processed: s3://${bucket}/${key} (${processedRows} rows)`);
   }
 };
