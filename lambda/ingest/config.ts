@@ -5,35 +5,38 @@
 
 import { S3Event } from "aws-lambda";
 import { existsSync } from "fs";
-import { config as dotenvConfig } from "dotenv";
+import * as dotenv from "dotenv";
 import {
   ExecutionMode,
   LocalConfig,
   ProcessingConfig,
   EnvironmentConfig,
   ValidationResult,
-  ConfigValidator
+  ConfigValidator,
 } from "./types";
 
 /**
  * Detects execution mode based on event presence and environment
  */
-export function detectExecutionMode(event?: S3Event, localConfig?: LocalConfig): ExecutionMode {
+export function detectExecutionMode(
+  event?: S3Event,
+  localConfig?: LocalConfig
+): ExecutionMode {
   // If we have an S3 event, we're definitely in AWS mode
   if (event && event.Records && event.Records.length > 0) {
     return "aws";
   }
-  
+
   // If we have local config provided, we're in local mode
   if (localConfig) {
     return "local";
   }
-  
+
   // Check for AWS Lambda environment variables
   if (process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.LAMBDA_RUNTIME_DIR) {
     return "aws";
   }
-  
+
   // Default to local mode for development
   return "local";
 }
@@ -44,7 +47,7 @@ export function detectExecutionMode(event?: S3Event, localConfig?: LocalConfig):
 function loadDotEnv(): void {
   // Only load .env in non-AWS environments
   if (!process.env.AWS_LAMBDA_FUNCTION_NAME) {
-    dotenvConfig({ override: false }); // Don't override existing env vars
+    dotenv.config({ override: false }); // Don't override existing env vars
   }
 }
 
@@ -56,28 +59,34 @@ export function loadEnvironmentConfig(): EnvironmentConfig {
   if (!process.env.AWS_LAMBDA_FUNCTION_NAME) {
     loadDotEnv();
   }
-  
+
   const config: EnvironmentConfig = {
     strapiBaseUrl: process.env.STRAPI_BASE_URL || "",
     strapiToken: process.env.STRAPI_TOKEN || "",
-    processMode: (process.env.PROCESS_MODE?.toLowerCase() === "sequential" ? "sequential" : "parallel"),
+    processMode:
+      process.env.PROCESS_MODE?.toLowerCase() === "sequential"
+        ? "sequential"
+        : "parallel",
     omitGet: process.env.OMIT_GET === "true",
     batchSize: Number(process.env.BATCH_SIZE) || 100,
     chunkSize: Number(process.env.CHUNK_SIZE) || 150,
   };
-  
+
   return config;
 }
 
 /**
  * Creates processing configuration from environment and overrides
  */
-export function createProcessingConfig(overrides?: Partial<ProcessingConfig>): ProcessingConfig {
+export function createProcessingConfig(
+  overrides?: Partial<ProcessingConfig>
+): ProcessingConfig {
   const envConfig = loadEnvironmentConfig();
-  
+
   return {
     processMode: overrides?.processMode || envConfig.processMode,
-    omitGet: overrides?.omitGet !== undefined ? overrides.omitGet : envConfig.omitGet,
+    omitGet:
+      overrides?.omitGet !== undefined ? overrides.omitGet : envConfig.omitGet,
     batchSize: overrides?.batchSize || envConfig.batchSize,
     chunkSize: overrides?.chunkSize || envConfig.chunkSize,
   };
@@ -87,96 +96,117 @@ export function createProcessingConfig(overrides?: Partial<ProcessingConfig>): P
  * Configuration validator implementation
  */
 export class DefaultConfigValidator implements ConfigValidator {
-  validateEnvironmentConfig(config: Partial<EnvironmentConfig>): ValidationResult {
+  validateEnvironmentConfig(
+    config: Partial<EnvironmentConfig>
+  ): ValidationResult {
     const errors: string[] = [];
     const warnings: string[] = [];
-    
+
     // Required fields
     if (!config.strapiBaseUrl) {
       errors.push("STRAPI_BASE_URL is required");
     } else if (!this.isValidUrl(config.strapiBaseUrl)) {
       errors.push("STRAPI_BASE_URL must be a valid URL");
     }
-    
+
     if (!config.strapiToken) {
       errors.push("STRAPI_TOKEN is required");
     }
-    
+
     // Optional field validation
-    if (config.processMode && !["parallel", "sequential"].includes(config.processMode)) {
+    if (
+      config.processMode &&
+      !["parallel", "sequential"].includes(config.processMode)
+    ) {
       errors.push("PROCESS_MODE must be either 'parallel' or 'sequential'");
     }
-    
+
     if (config.batchSize && (config.batchSize < 1 || config.batchSize > 1000)) {
-      warnings.push("BATCH_SIZE should be between 1 and 1000 for optimal performance");
+      warnings.push(
+        "BATCH_SIZE should be between 1 and 1000 for optimal performance"
+      );
     }
-    
+
     if (config.chunkSize && (config.chunkSize < 1 || config.chunkSize > 1000)) {
-      warnings.push("CHUNK_SIZE should be between 1 and 1000 for optimal performance");
+      warnings.push(
+        "CHUNK_SIZE should be between 1 and 1000 for optimal performance"
+      );
     }
-    
+
     return {
       isValid: errors.length === 0,
       errors,
-      warnings
+      warnings,
     };
   }
-  
+
   validateLocalConfig(config: Partial<LocalConfig>): ValidationResult {
     const errors: string[] = [];
     const warnings: string[] = [];
-    
+
     if (!config.participationsCsvPath) {
       errors.push("participationsCsvPath is required for local execution");
     } else if (!existsSync(config.participationsCsvPath)) {
-      errors.push(`Participations CSV file not found: ${config.participationsCsvPath}`);
+      errors.push(
+        `Participations CSV file not found: ${config.participationsCsvPath}`
+      );
     }
-    
+
     if (config.cctsCsvPath && !existsSync(config.cctsCsvPath)) {
-      warnings.push(`CCTs CSV file not found: ${config.cctsCsvPath} (will continue without CCTs)`);
+      warnings.push(
+        `CCTs CSV file not found: ${config.cctsCsvPath} (will continue without CCTs)`
+      );
     }
-    
+
     if (config.outputPath) {
-      const outputDir = config.outputPath.substring(0, config.outputPath.lastIndexOf("/"));
+      const outputDir = config.outputPath.substring(
+        0,
+        config.outputPath.lastIndexOf("/")
+      );
       if (outputDir && !existsSync(outputDir)) {
         errors.push(`Output directory does not exist: ${outputDir}`);
       }
     }
-    
+
     return {
       isValid: errors.length === 0,
       errors,
-      warnings
+      warnings,
     };
   }
-  
-  validateProcessingConfig(config: Partial<ProcessingConfig>): ValidationResult {
+
+  validateProcessingConfig(
+    config: Partial<ProcessingConfig>
+  ): ValidationResult {
     const errors: string[] = [];
     const warnings: string[] = [];
-    
-    if (config.processMode && !["parallel", "sequential"].includes(config.processMode)) {
+
+    if (
+      config.processMode &&
+      !["parallel", "sequential"].includes(config.processMode)
+    ) {
       errors.push("processMode must be either 'parallel' or 'sequential'");
     }
-    
+
     if (config.batchSize && config.batchSize < 1) {
       errors.push("batchSize must be greater than 0");
     }
-    
+
     if (config.chunkSize && config.chunkSize < 1) {
       errors.push("chunkSize must be greater than 0");
     }
-    
+
     if (config.batchSize && config.batchSize > 1000) {
       warnings.push("Large batch sizes may cause memory issues");
     }
-    
+
     return {
       isValid: errors.length === 0,
       errors,
-      warnings
+      warnings,
     };
   }
-  
+
   private isValidUrl(url: string): boolean {
     try {
       new URL(url);
@@ -199,51 +229,54 @@ export function validateConfiguration(
   const validator = new DefaultConfigValidator();
   const allErrors: string[] = [];
   const allWarnings: string[] = [];
-  
+
   // Always validate environment config
   if (envConfig) {
     const envResult = validator.validateEnvironmentConfig(envConfig);
     allErrors.push(...envResult.errors);
     allWarnings.push(...envResult.warnings);
   }
-  
+
   // Validate local config if in local mode
   if (executionMode === "local" && localConfig) {
     const localResult = validator.validateLocalConfig(localConfig);
     allErrors.push(...localResult.errors);
     allWarnings.push(...localResult.warnings);
   }
-  
+
   // Validate processing config if provided
   if (processingConfig) {
     const procResult = validator.validateProcessingConfig(processingConfig);
     allErrors.push(...procResult.errors);
     allWarnings.push(...procResult.warnings);
   }
-  
+
   return {
     isValid: allErrors.length === 0,
     errors: allErrors,
-    warnings: allWarnings
+    warnings: allWarnings,
   };
 }
 
 /**
  * Logs configuration validation results
  */
-export function logValidationResults(result: ValidationResult, context: string = ""): void {
+export function logValidationResults(
+  result: ValidationResult,
+  context: string = ""
+): void {
   const prefix = context ? `[${context}] ` : "";
-  
+
   if (result.errors.length > 0) {
     console.error(`${prefix}Configuration validation failed:`);
-    result.errors.forEach(error => console.error(`  ❌ ${error}`));
+    result.errors.forEach((error) => console.error(`  ❌ ${error}`));
   }
-  
+
   if (result.warnings.length > 0) {
     console.warn(`${prefix}Configuration warnings:`);
-    result.warnings.forEach(warning => console.warn(`  ⚠️  ${warning}`));
+    result.warnings.forEach((warning) => console.warn(`  ⚠️  ${warning}`));
   }
-  
+
   if (result.isValid && result.warnings.length === 0) {
     console.log(`${prefix}Configuration validation passed ✅`);
   }
@@ -253,10 +286,7 @@ export function logValidationResults(result: ValidationResult, context: string =
  * Gets required environment variables with defaults
  */
 export function getRequiredEnvironmentVariables(): string[] {
-  return [
-    "STRAPI_BASE_URL",
-    "STRAPI_TOKEN"
-  ];
+  return ["STRAPI_BASE_URL", "STRAPI_TOKEN"];
 }
 
 /**
@@ -264,9 +294,9 @@ export function getRequiredEnvironmentVariables(): string[] {
  */
 export function getOptionalEnvironmentVariables(): Record<string, string> {
   return {
-    "PROCESS_MODE": "parallel",
-    "OMIT_GET": "false", 
-    "BATCH_SIZE": "100",
-    "CHUNK_SIZE": "150"
+    PROCESS_MODE: "parallel",
+    OMIT_GET: "false",
+    BATCH_SIZE: "100",
+    CHUNK_SIZE: "150",
   };
 }

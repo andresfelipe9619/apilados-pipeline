@@ -14,7 +14,6 @@ import {
   StrapiCreateResponse,
   StrapiEntity,
   Dict,
-  Primitive,
   ExecutionMode,
 } from "./types";
 import {
@@ -24,6 +23,14 @@ import {
   validateConfiguration,
   logValidationResults,
 } from "./config";
+import {
+  toBoolean,
+  normalizeHeaders,
+  toNumber,
+  formatError,
+} from "./utils";
+import { CacheManager } from "./cache";
+import { EntityManager } from "./entities";
 
 const s3 = new S3Client({});
 
@@ -42,127 +49,16 @@ const streamToString = async (stream: Readable) =>
 // API client - will be initialized with configuration
 let api: AxiosInstance;
 
-// --- CACHÉ GLOBAL ---
-const cache: CacheMaps = {
-  programas: new Map<string, number>(),
-  ccts: new Map<string, number>(),
-  participantes: new Map<string, number>(),
-  implementaciones: new Map<string, number>(),
-  modulos: new Map<string, number>(),
-  encuestas: new Map<string, number>(),
-  asistencias: new Map<string, number>(),
-  trabajos: new Map<string, number>(),
-};
+// Cache manager - will be initialized with API client
+let cacheManager: CacheManager;
 
-// --- FUNCIONES UTILITARIAS ---
-const toBoolean = (value: unknown): boolean => {
-  if (typeof value !== "string") return !!value;
-  const v = value.trim().toLowerCase();
-  return v === "true" || v === "1";
-};
+// Entity manager - will be initialized with API client and cache manager
+let entityManager: EntityManager;
 
-const normalizeHeaders = ({ header }: { header: string }): string =>
-  header
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[^a-z0-9_]+/g, "_")
-    .replace(/^_|_$/g, "");
+// Utility functions are now imported from ./utils
+// Cache management is now handled by CacheManager class
 
-// --- FUNCIONES DE MIGRACIÓN ---
-async function precacheSimpleEntities(
-  endpoint: string,
-  fieldName: string,
-  localCache: Map<string, number>
-): Promise<void> {
-  console.log(
-    `[CACHE] descargando todas las entidades ${endpoint} por páginas…`
-  );
-  let page = 1;
-  const pageSize = 1000;
-  while (true) {
-    const { data: res } = await api.get<
-      StrapiListResponse<StrapiEntity & Record<string, unknown>>
-    >(
-      `/${endpoint}?pagination[page]=${page}&pagination[pageSize]=${pageSize}&fields=id,${fieldName}`
-    );
-    if (!res.data.length) break;
-    for (const ent of res.data) {
-      const key = ent[fieldName];
-      if (key !== undefined && typeof key === "string") {
-        localCache.set(key, ent.id);
-      }
-    }
-    page++;
-  }
-}
-
-async function getOrCreate(
-  endpoint: string,
-  filters: Dict<unknown>,
-  createData: unknown,
-  localCache: Map<string, number>,
-  cacheKey: string | undefined
-): Promise<number | null> {
-  if (cacheKey && localCache.has(cacheKey)) {
-    return localCache.get(cacheKey)!;
-  }
-  let qs = "";
-  if (
-    (processingConfig.omitGet && endpoint !== "participantes") ||
-    !processingConfig.omitGet
-  ) {
-    qs = Object.entries(filters)
-      .map(([k, v]) => `filters[${k}][$eq]=${encodeURIComponent(String(v))}`)
-      .join("&");
-    const { data: getRes } = await api.get<StrapiListResponse<StrapiEntity>>(
-      `/${endpoint}?${qs}&pagination[limit]=1`
-    );
-
-    if (getRes.data.length > 0) {
-      const id = getRes.data[0].id;
-      if (cacheKey) localCache.set(cacheKey, id);
-      return id;
-    }
-  }
-
-  if (!createData) return null;
-
-  try {
-    const { data: postRes } = await api.post<
-      StrapiCreateResponse<StrapiEntity>
-    >(`/${endpoint}`, {
-      data: createData,
-    });
-    const newId = postRes.data.id;
-    if (cacheKey) localCache.set(cacheKey, newId);
-    return newId;
-  } catch (error: unknown) {
-    const err = error as {
-      response?: {
-        data?: { error?: { message?: string } };
-      };
-    };
-    if (
-      err.response?.data?.error?.message &&
-      err.response.data.error.message.includes("unique constraint")
-    ) {
-      console.warn(
-        `[WARN] Condición de carrera para ${endpoint}. Re-intentando búsqueda...`
-      );
-      const { data: refetchRes } = await api.get<
-        StrapiListResponse<StrapiEntity>
-      >(`/${endpoint}?${qs}&pagination[limit]=1`);
-      if (refetchRes.data.length > 0) {
-        const id = refetchRes.data[0].id;
-        if (cacheKey) localCache.set(cacheKey, id);
-        return id;
-      }
-    }
-    throw error;
-  }
-}
+// getOrCreate function is now handled by EntityManager
 
 async function handleParticipantEmail(
   row: ParticipantCsvRow,
@@ -219,17 +115,21 @@ async function handleParticipantEmail(
  */
 async function processParticipationRow(row: ParticipantCsvRow) {
   // PASO 1: Obtener IDs de la caché. Deben existir.
-  const implementacionKey = `${row.implementacion}|${row.ciclo_escolar}|${row.periodo_de_implementacion}`;
-  const implementacionId = cache.implementaciones.get(implementacionKey);
-  const cctId = row.cct ? cache.ccts.get(row.cct) : null;
+  const implementacionKey = cacheManager.createImplementationKey(
+    row.implementacion || "",
+    row.ciclo_escolar || "",
+    row.periodo_de_implementacion || ""
+  );
+  const implementacionId = cacheManager.getCachedId("implementaciones", implementacionKey);
+  const cctId = row.cct ? cacheManager.getCachedId("ccts", row.cct) : null;
 
   // PASO 2: Manejar participantes "on the run"
-  const participantId = await getOrCreate(
+  const participantId = await entityManager.getOrCreate(
     "participantes",
     { id_externo: row.id },
     {
       id_externo: row.id,
-      edad: Number(row.edad) || null,
+      edad: toNumber(row.edad),
       sexo: row.sexo,
       telefono: row.telefono,
       curp: row.curp,
@@ -249,7 +149,7 @@ async function processParticipationRow(row: ParticipantCsvRow) {
           : null,
       cct: cctId,
     },
-    cache.participantes,
+    "participantes",
     row.id
   );
 
@@ -283,7 +183,7 @@ async function processParticipationRow(row: ParticipantCsvRow) {
         puesto: row.puesto,
         puesto_detalle: row.puesto_detalle,
         antiguedad: row.antiguedad,
-        estudiantes_a_cargo: Number(row.estudiantes_a_cargo) || null,
+        estudiantes_a_cargo: toNumber(row.estudiantes_a_cargo),
         turno: row.turno,
         participa_director: toBoolean(row.participa_director_a),
         cct_verificado: toBoolean(row.centro_de_trabajo_verificado),
@@ -305,7 +205,7 @@ async function processParticipationRow(row: ParticipantCsvRow) {
         .post("/uso-app-participantes", {
           data: {
             participante: participantId,
-            minutos_uso_app: Number(row.minutos_app) || 0,
+            minutos_uso_app: toNumber(row.minutos_app) || 0,
             descargo_app: toBoolean(row.descarga_app),
           },
         })
@@ -319,15 +219,15 @@ async function processParticipationRow(row: ParticipantCsvRow) {
       typeof row[mod] === "string" &&
       row[mod].toUpperCase() !== "NA"
     ) {
-      const cacheKey = `${mod}|${implementacionId}`;
-      const moduleId = cache.modulos.get(cacheKey);
+      const cacheKey = cacheManager.createImplementationCacheKey(mod, implementacionId);
+      const moduleId = cacheManager.getCachedId("modulos", cacheKey);
       if (moduleId) {
         creationPromises.push(
           api.post("/modulo-progreso-registros", {
             data: {
               participacion: participationId,
               modulo: moduleId,
-              calificacion: Number(row[mod]),
+              calificacion: toNumber(row[mod]),
             },
           })
         );
@@ -338,7 +238,7 @@ async function processParticipationRow(row: ParticipantCsvRow) {
   for (const key of ["encuesta_inicial", "encuesta_final"] as const) {
     const val = row[key];
     if (typeof val === "string" && val.toUpperCase() !== "NA") {
-      const encId = cache.encuestas.get(key);
+      const encId = cacheManager.getCachedId("encuestas", key);
       if (encId) {
         creationPromises.push(
           api.post("/encuesta-completada-registros", {
@@ -359,8 +259,8 @@ async function processParticipationRow(row: ParticipantCsvRow) {
   for (const field of attendanceFields) {
     const val = row[field];
     if (typeof val === "string" && val.toUpperCase() !== "NA") {
-      const cacheKey = `${field}|${implementacionId}`;
-      const asisId = cache.asistencias.get(cacheKey);
+      const cacheKey = cacheManager.createImplementationCacheKey(field, implementacionId);
+      const asisId = cacheManager.getCachedId("asistencias", cacheKey);
       if (asisId) {
         creationPromises.push(
           api.post("/participante-asistencia-registros", {
@@ -381,8 +281,8 @@ async function processParticipationRow(row: ParticipantCsvRow) {
   for (const field of workFields) {
     const val = row[field];
     if (typeof val === "string" && val.toUpperCase() !== "NA") {
-      const cacheKey = `${field}|${implementacionId}`;
-      const jobId = cache.trabajos.get(cacheKey);
+      const cacheKey = cacheManager.createImplementationCacheKey(field, implementacionId);
+      const jobId = cacheManager.getCachedId("trabajos", cacheKey);
       if (jobId) {
         creationPromises.push(
           api.post("/trabajo-realizado-registros", {
@@ -435,6 +335,12 @@ function initializeConfiguration(executionMode: ExecutionMode): void {
     },
     timeout: 30000,
   });
+
+  // Initialize cache manager
+  cacheManager = new CacheManager(api);
+
+  // Initialize entity manager
+  entityManager = new EntityManager(api, cacheManager, processingConfig);
 
   console.log(`✅ Configuration initialized for ${executionMode} mode`);
   console.log(`   - Process Mode: ${processingConfig.processMode}`);
