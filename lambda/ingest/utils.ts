@@ -197,7 +197,12 @@ export function formatError(error: unknown, context?: Record<string, unknown>): 
     message = error;
   } else if (error && typeof error === "object") {
     // Handle Axios error format
-    const axiosError = error as unknown;
+    const axiosError = error as {
+      response?: {
+        data?: { error?: { message?: string } };
+      };
+      message?: string;
+    };
     if (axiosError.response?.data?.error?.message) {
       message = axiosError.response.data.error.message;
     } else if (axiosError.message) {
