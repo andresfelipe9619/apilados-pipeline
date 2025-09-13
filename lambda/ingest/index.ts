@@ -23,12 +23,7 @@ import {
   validateConfiguration,
   logValidationResults,
 } from "./config";
-import {
-  toBoolean,
-  normalizeHeaders,
-  toNumber,
-  formatError,
-} from "./utils";
+import { toBoolean, normalizeHeaders, toNumber, formatError } from "./utils";
 import { CacheManager } from "./cache";
 import { EntityManager } from "./entities";
 
@@ -62,7 +57,7 @@ let entityManager: EntityManager;
 
 async function handleParticipantEmail(
   row: ParticipantCsvRow,
-  participantId: number
+  participantId: number,
 ) {
   const email = row.email?.trim();
   if (email && processingConfig.omitGet) {
@@ -75,7 +70,7 @@ async function handleParticipantEmail(
     const { data: existingAll } = await api.get<
       StrapiListResponse<StrapiEntity & Record<string, unknown>>
     >(
-      `/correo-participantes?filters[participante][id][$eq]=${participantId}&pagination[limit]=1`
+      `/correo-participantes?filters[participante][id][$eq]=${participantId}&pagination[limit]=1`,
     );
 
     const shouldBePrincipal = existingAll.data.length === 0;
@@ -85,8 +80,8 @@ async function handleParticipantEmail(
       StrapiListResponse<StrapiEntity & Record<string, unknown>>
     >(
       `/correo-participantes?filters[participante][id][$eq]=${participantId}&filters[correo][$eq]=${encodeURIComponent(
-        email
-      )}&pagination[limit]=1`
+        email,
+      )}&pagination[limit]=1`,
     );
 
     if (existingByEmail.data.length === 0) {
@@ -99,7 +94,7 @@ async function handleParticipantEmail(
         },
       });
       console.log(
-        `   → Correo asignado: ${email} (principal=${shouldBePrincipal})`
+        `   → Correo asignado: ${email} (principal=${shouldBePrincipal})`,
       );
     } else {
       console.log(`   → Correo ya registrado: ${email}`);
@@ -118,9 +113,12 @@ async function processParticipationRow(row: ParticipantCsvRow) {
   const implementacionKey = cacheManager.createImplementationKey(
     row.implementacion || "",
     row.ciclo_escolar || "",
-    row.periodo_de_implementacion || ""
+    row.periodo_de_implementacion || "",
   );
-  const implementacionId = cacheManager.getCachedId("implementaciones", implementacionKey);
+  const implementacionId = cacheManager.getCachedId(
+    "implementaciones",
+    implementacionKey,
+  );
   const cctId = row.cct ? cacheManager.getCachedId("ccts", row.cct) : null;
 
   // PASO 2: Manejar participantes "on the run"
@@ -150,12 +148,12 @@ async function processParticipationRow(row: ParticipantCsvRow) {
       cct: cctId,
     },
     "participantes",
-    row.id
+    row.id,
   );
 
   if (!participantId || !implementacionId) {
     throw new Error(
-      `Faltan IDs críticos para la fila con id_externo ${row.id}. ParticipanteID: ${participantId}, ImplementacionID: ${implementacionId}`
+      `Faltan IDs críticos para la fila con id_externo ${row.id}. ParticipanteID: ${participantId}, ImplementacionID: ${implementacionId}`,
     );
   }
 
@@ -164,11 +162,11 @@ async function processParticipationRow(row: ParticipantCsvRow) {
     const existingPartRes = await api.get<
       StrapiListResponse<StrapiEntity & Record<string, unknown>>
     >(
-      `/participaciones?filters[participante][id][$eq]=${participantId}&filters[implementacion][id][$eq]=${implementacionId}&pagination[limit]=1`
+      `/participaciones?filters[participante][id][$eq]=${participantId}&filters[implementacion][id][$eq]=${implementacionId}&pagination[limit]=1`,
     );
     if (existingPartRes.data.data.length > 0) {
       console.log(
-        "Participante en esta implementacion ya existe. Ignorando fila..."
+        "Participante en esta implementacion ya existe. Ignorando fila...",
       );
       return;
     }
@@ -191,7 +189,7 @@ async function processParticipationRow(row: ParticipantCsvRow) {
         involucramiento: row.involucramiento,
         promedio_modulos: row.promedio_modulos,
       },
-    }
+    },
   );
   const participationId = partRes.data.id;
 
@@ -209,7 +207,7 @@ async function processParticipationRow(row: ParticipantCsvRow) {
             descargo_app: toBoolean(row.descarga_app),
           },
         })
-        .catch(() => {})
+        .catch(() => {}),
     );
   }
 
@@ -219,7 +217,10 @@ async function processParticipationRow(row: ParticipantCsvRow) {
       typeof row[mod] === "string" &&
       row[mod].toUpperCase() !== "NA"
     ) {
-      const cacheKey = cacheManager.createImplementationCacheKey(mod, implementacionId);
+      const cacheKey = cacheManager.createImplementationCacheKey(
+        mod,
+        implementacionId,
+      );
       const moduleId = cacheManager.getCachedId("modulos", cacheKey);
       if (moduleId) {
         creationPromises.push(
@@ -229,7 +230,7 @@ async function processParticipationRow(row: ParticipantCsvRow) {
               modulo: moduleId,
               calificacion: toNumber(row[mod]),
             },
-          })
+          }),
         );
       }
     }
@@ -247,19 +248,23 @@ async function processParticipationRow(row: ParticipantCsvRow) {
               encuesta: encId,
               estado: "Completada",
             },
-          })
+          }),
         );
       }
     }
   }
 
   const attendanceFields = Object.keys(row).filter(
-    (k) => k.startsWith("asist_") || k.startsWith("trip") || k.startsWith("ses")
+    (k) =>
+      k.startsWith("asist_") || k.startsWith("trip") || k.startsWith("ses"),
   );
   for (const field of attendanceFields) {
     const val = row[field];
     if (typeof val === "string" && val.toUpperCase() !== "NA") {
-      const cacheKey = cacheManager.createImplementationCacheKey(field, implementacionId);
+      const cacheKey = cacheManager.createImplementationCacheKey(
+        field,
+        implementacionId,
+      );
       const asisId = cacheManager.getCachedId("asistencias", cacheKey);
       if (asisId) {
         creationPromises.push(
@@ -269,19 +274,22 @@ async function processParticipationRow(row: ParticipantCsvRow) {
               asistencia: asisId,
               presente: true,
             },
-          })
+          }),
         );
       }
     }
   }
 
   const workFields = Object.keys(row).filter(
-    (k) => k.startsWith("trabajo") || k.startsWith("evidencia")
+    (k) => k.startsWith("trabajo") || k.startsWith("evidencia"),
   );
   for (const field of workFields) {
     const val = row[field];
     if (typeof val === "string" && val.toUpperCase() !== "NA") {
-      const cacheKey = cacheManager.createImplementationCacheKey(field, implementacionId);
+      const cacheKey = cacheManager.createImplementationCacheKey(
+        field,
+        implementacionId,
+      );
       const jobId = cacheManager.getCachedId("trabajos", cacheKey);
       if (jobId) {
         creationPromises.push(
@@ -291,7 +299,7 @@ async function processParticipationRow(row: ParticipantCsvRow) {
               trabajo: jobId,
               completado: true,
             },
-          })
+          }),
         );
       }
     }
@@ -316,13 +324,13 @@ function initializeConfiguration(executionMode: ExecutionMode): void {
     executionMode,
     globalConfig,
     undefined,
-    processingConfig
+    processingConfig,
   );
   logValidationResults(validation, `${executionMode.toUpperCase()} Mode`);
 
   if (!validation.isValid) {
     throw new Error(
-      `Configuration validation failed: ${validation.errors.join(", ")}`
+      `Configuration validation failed: ${validation.errors.join(", ")}`,
     );
   }
 
@@ -377,7 +385,7 @@ export const handler: S3Handler = async (event: S3Event) => {
 
     // fetch object
     const obj = await s3.send(
-      new GetObjectCommand({ Bucket: bucket, Key: key })
+      new GetObjectCommand({ Bucket: bucket, Key: key }),
     );
 
     await new Promise<void>((resolve, reject) => {
