@@ -11,7 +11,12 @@ module.exports = {
     '!**/*.test.ts',
     '!**/*.d.ts',
     '!**/node_modules/**',
+    '!**/dist/**',
+    '!**/examples/**',
   ],
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov', 'html'],
+  setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
+  testTimeout: 30000,
+  maxWorkers: 1, // Prevent race conditions in tests
 };

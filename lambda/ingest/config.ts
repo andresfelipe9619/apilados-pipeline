@@ -61,13 +61,15 @@ export function loadEnvironmentConfig(): EnvironmentConfig {
   }
 
   const config: EnvironmentConfig = {
-    strapiBaseUrl: process.env.STRAPI_BASE_URL || "",
+    // Support both STRAPI_BASE_URL (new) and STRAPI_URL (migrator.js compatibility)
+    strapiBaseUrl: process.env.STRAPI_BASE_URL || process.env.STRAPI_URL || "",
     strapiToken: process.env.STRAPI_TOKEN || "",
     processMode:
       process.env.PROCESS_MODE?.toLowerCase() === "sequential"
         ? "sequential"
         : "parallel",
-    omitGet: process.env.OMIT_GET === "true",
+    // Support both OMIT_GET (new) and OMMIT_GET (migrator.js compatibility - note the typo)
+    omitGet: process.env.OMIT_GET === "true" || process.env.OMMIT_GET === "true",
     batchSize: Number(process.env.BATCH_SIZE) || 100,
     chunkSize: Number(process.env.CHUNK_SIZE) || 150,
   };
@@ -291,12 +293,71 @@ export function getRequiredEnvironmentVariables(): string[] {
 
 /**
  * Gets optional environment variables with their defaults
+ * Includes backward compatibility with migrator.js variable names
  */
 export function getOptionalEnvironmentVariables(): Record<string, string> {
   return {
-    PROCESS_MODE: "parallel",
-    OMIT_GET: "false",
-    BATCH_SIZE: "100",
-    CHUNK_SIZE: "150",
+    PROCESS_MODE: "parallel", // Processing mode: 'parallel' or 'sequential'
+    OMIT_GET: "false", // Skip GET requests for performance (also supports OMMIT_GET for migrator.js compatibility)
+    BATCH_SIZE: "100", // Number of records to process in each batch
+    CHUNK_SIZE: "150", // S3 processing chunk size
+    STRAPI_URL: "", // Alternative to STRAPI_BASE_URL for migrator.js compatibility
   };
+}
+
+/**
+ * Gets all supported environment variables for documentation
+ */
+export function getAllSupportedEnvironmentVariables(): {
+  required: string[];
+  optional: Record<string, string>;
+  migrator_compatibility: string[];
+} {
+  return {
+    required: getRequiredEnvironmentVariables(),
+    optional: getOptionalEnvironmentVariables(),
+    migrator_compatibility: [
+      "STRAPI_URL", // Alternative to STRAPI_BASE_URL
+      "OMMIT_GET", // Alternative to OMIT_GET (note the typo in original migrator.js)
+      "PARTICIPATIONS_CSV_FILE", // Used in local mode only
+      "CCTS_CSV_FILE", // Used in local mode only
+    ],
+  };
+}
+
+/**
+ * Creates LocalConfig from environment variables for migrator.js compatibility
+ * This allows running the lambda locally using the same environment variables as migrator.js
+ */
+export function createLocalConfigFromEnv(): LocalConfig | null {
+  // Load .env file if not in AWS environment
+  if (!process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    loadDotEnv();
+  }
+
+  const participationsCsvPath = process.env.PARTICIPATIONS_CSV_FILE;
+  
+  if (!participationsCsvPath) {
+    return null; // No local config available from environment
+  }
+
+  return {
+    participationsCsvPath,
+    cctsCsvPath: process.env.CCTS_CSV_FILE,
+    outputPath: process.env.OUTPUT_PATH || "migration-errors.csv",
+  };
+}
+
+/**
+ * Detects if we should use local mode based on environment variables
+ * This provides migrator.js compatibility
+ */
+export function shouldUseLocalMode(): boolean {
+  // Load .env file if not in AWS environment
+  if (!process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    loadDotEnv();
+  }
+
+  // If PARTICIPATIONS_CSV_FILE is set, we should use local mode
+  return !!process.env.PARTICIPATIONS_CSV_FILE;
 }

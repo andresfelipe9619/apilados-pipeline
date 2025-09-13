@@ -4,8 +4,19 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "clean": "rm -rf dist",
     "test": "jest",
-    "test:watch": "jest --watch"
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "cli": "npx ts-node cli.ts",
+    "local-test": "npx ts-node -e \"require('./local-test-runner').runLocalTest(process.argv[2]).then(r => console.log('Result:', r)).catch(e => console.error('Error:', e))\"",
+    "dev-setup": "npx ts-node -e \"require('./dev-utils').setupTestEnvironment().then(r => console.log('Setup complete:', r)).catch(e => console.error('Error:', e))\"",
+    "docs": "echo 'Documentation available in:' && echo '  - LOCAL_TESTING.md' && echo '  - ENVIRONMENT_VARIABLES.md' && echo '  - BUILD_CONFIGURATION.md' && echo '  - ../../README.md' && echo '  - ../../USAGE_EXAMPLES.md' && echo '  - ../../MIGRATION_GUIDE.md'",
+    "help": "npm run docs",
+    "prebuild": "npm run clean",
+    "pretest": "npm run build"
   },
   "keywords": [],
   "author": "",
@@ -14,13 +25,16 @@
   "dependencies": {
     "axios": "^1.12.0",
     "csv-parser": "^3.2.0",
-    "dotenv": "^16.0.0"
+    "dotenv": "^16.0.0",
+    "commander": "^11.0.0",
+    "@aws-sdk/client-s3": "^3.879.0"
   },
   "devDependencies": {
     "@types/jest": "^29.0.0",
     "@types/node": "^18.0.0",
     "jest": "^29.0.0",
     "ts-jest": "^29.0.0",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "ts-node": "^10.9.0"
   }
 }

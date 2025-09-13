@@ -67,25 +67,44 @@ export class MigrationErrorReporter implements ErrorReporter {
   }
 
   /**
-   * Generate CSV content for error report
-   * @returns CSV formatted string with all error records
+   * Generate CSV content for error report with summary statistics
+   * @returns CSV formatted string with all error records and summary
    */
   generateErrorCsv(): string {
     if (this.errors.length === 0) {
       return "No errors to report";
     }
 
-    // CSV headers
-    const headers = ["Participant ID", "Email", "Row Number", "Error Description", "Timestamp"];
-    const csvLines = [headers.join(",")];
+    const csvLines: string[] = [];
+    const timestamp = new Date().toISOString();
+    const summary = this.getErrorSummary();
+
+    // Add summary header
+    csvLines.push("# Migration Error Report");
+    csvLines.push(`# Generated: ${timestamp}`);
+    csvLines.push(`# Total Errors: ${summary.totalErrors}`);
+    csvLines.push(`# Participants with Errors: ${summary.participantsWithErrors}`);
+    csvLines.push("#");
+
+    // Add error categorization summary
+    csvLines.push("# Error Categories:");
+    for (const [category, count] of Object.entries(summary.errorsByType)) {
+      csvLines.push(`# - ${category}: ${count}`);
+    }
+    csvLines.push("#");
+
+    // CSV headers for error details
+    const headers = ["Participant ID", "Email", "Row Number", "Error Category", "Error Description", "Timestamp"];
+    csvLines.push(headers.join(","));
 
     // Add each error as a CSV row
-    const timestamp = new Date().toISOString();
     for (const error of this.errors) {
+      const errorCategory = this.categorizeError(error.error);
       const row = [
         this.escapeCsvValue(error.participantId),
         this.escapeCsvValue(error.email),
         error.rowNumber?.toString() || "",
+        this.escapeCsvValue(errorCategory),
         this.escapeCsvValue(error.error),
         timestamp
       ];
@@ -113,9 +132,8 @@ export class MigrationErrorReporter implements ErrorReporter {
     if (this.executionMode === "local") {
       await this.saveToLocalFile(csvContent, finalOutputPath);
     } else {
-      // For AWS mode, we'll implement S3 upload in the next sub-task
-      // For now, just log the content
-      console.log("Error report content (AWS mode):", csvContent);
+      // AWS mode - upload to S3
+      await this.saveToS3(csvContent, finalOutputPath);
     }
 
     return finalOutputPath;
@@ -217,6 +235,46 @@ export class MigrationErrorReporter implements ErrorReporter {
   }
 
   /**
+   * Save error report to S3 bucket
+   * @param content - CSV content to save
+   * @param filePath - S3 key/path where to save the file
+   */
+  private async saveToS3(content: string, filePath: string): Promise<void> {
+    if (!this.s3Client || !this.s3Bucket) {
+      console.warn("S3 client or bucket not configured, logging error report content instead");
+      console.log("Error report content (AWS mode):", content);
+      return;
+    }
+
+    try {
+      // Ensure the S3 key has a proper path structure
+      const s3Key = filePath.startsWith("error-reports/") 
+        ? filePath 
+        : `error-reports/${filePath}`;
+
+      const command = new PutObjectCommand({
+        Bucket: this.s3Bucket,
+        Key: s3Key,
+        Body: content,
+        ContentType: "text/csv",
+        Metadata: {
+          "generated-by": "migration-error-reporter",
+          "error-count": this.errors.length.toString(),
+          "generation-timestamp": new Date().toISOString()
+        }
+      });
+
+      await this.s3Client.send(command);
+      console.log(`Error report uploaded to S3: s3://${this.s3Bucket}/${s3Key}`);
+    } catch (error) {
+      console.error(`Failed to upload error report to S3:`, error);
+      // Fallback to logging the content
+      console.log("Error report content (S3 upload failed):", content);
+      throw new Error(`Failed to upload error report to S3: ${error instanceof Error ? error.message : "Unknown error"}`);
+    }
+  }
+
+  /**
    * Categorize errors based on error message content
    * @param errorMessage - The error message to categorize
    * @returns Error category string
@@ -257,11 +315,28 @@ export class MigrationErrorReporter implements ErrorReporter {
  * Factory function to create ErrorReporter instances
  * @param executionMode - The execution mode (local or aws)
  * @param outputPath - Optional output path for error reports
+ * @param s3Config - Optional S3 configuration for AWS mode
  * @returns New ErrorReporter instance
  */
 export function createErrorReporter(
   executionMode: ExecutionMode = "local",
+  outputPath?: string,
+  s3Config?: { client: S3Client; bucket: string }
+): ErrorReporter {
+  return new MigrationErrorReporter(executionMode, outputPath, s3Config);
+}
+
+/**
+ * Create ErrorReporter with S3 support for AWS Lambda environment
+ * @param s3Client - Configured S3 client
+ * @param bucket - S3 bucket name for error reports
+ * @param outputPath - Optional custom output path/key
+ * @returns New ErrorReporter instance configured for AWS
+ */
+export function createS3ErrorReporter(
+  s3Client: S3Client,
+  bucket: string,
   outputPath?: string
 ): ErrorReporter {
-  return new MigrationErrorReporter(executionMode, outputPath);
+  return new MigrationErrorReporter("aws", outputPath, { client: s3Client, bucket });
 }

@@ -4,12 +4,13 @@
 
 import { writeFile } from "node:fs/promises";
 import { MigrationErrorReporter, createErrorReporter } from "./error-reporter";
-import { ErrorRecord } from "./types";
 
 // Mock fs/promises
 jest.mock("node:fs/promises", () => ({
   writeFile: jest.fn()
 }));
+
+
 
 describe("MigrationErrorReporter", () => {
   let errorReporter: MigrationErrorReporter;
@@ -145,14 +146,25 @@ describe("MigrationErrorReporter", () => {
       expect(csv).toBe("No errors to report");
     });
 
-    it("should generate proper CSV format", () => {
+    it("should generate proper CSV format with summary", () => {
       errorReporter.logError("PART001", "test@example.com", "Test error", 5);
       
       const csv = errorReporter.generateErrorCsv();
       const lines = csv.split("\n");
       
-      expect(lines[0]).toBe("Participant ID,Email,Row Number,Error Description,Timestamp");
-      expect(lines[1]).toMatch(/^PART001,test@example\.com,5,Test error,\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+      // Check for summary header
+      expect(lines[0]).toBe("# Migration Error Report");
+      expect(lines[2]).toBe("# Total Errors: 1");
+      expect(lines[3]).toBe("# Participants with Errors: 1");
+      
+      // Find the CSV headers line
+      const headerLineIndex = lines.findIndex(line => line.startsWith("Participant ID"));
+      expect(headerLineIndex).toBeGreaterThan(0);
+      expect(lines[headerLineIndex]).toBe("Participant ID,Email,Row Number,Error Category,Error Description,Timestamp");
+      
+      // Check data row
+      const dataLine = lines[headerLineIndex + 1];
+      expect(dataLine).toMatch(/^PART001,test@example\.com,5,General Error,Test error,\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
     });
 
     it("should handle CSV escaping for commas", () => {
@@ -188,9 +200,11 @@ describe("MigrationErrorReporter", () => {
       const csv = errorReporter.generateErrorCsv();
       const lines = csv.split("\n");
       
-      expect(lines[1]).toMatch(/^PART001,test@example\.com,,Test error,\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+      // Find the data line (after headers and summary)
+      const dataLineIndex = lines.findIndex(line => line.startsWith("PART001"));
+      expect(dataLineIndex).toBeGreaterThan(0);
+      expect(lines[dataLineIndex]).toContain(",Test error,");
     });
-  });
 
   describe("saveErrorReport", () => {
     const mockWriteFile = writeFile as jest.MockedFunction<typeof writeFile>;

@@ -1,5 +1,4 @@
-import { processCsv } from "./index";
-import * as fs from "fs";
+import { runLocal } from "./index";
 import * as path from "path";
 
 async function runTest() {
@@ -8,10 +7,12 @@ async function runTest() {
 
   const csvFilePath = path.join(__dirname, "../../test-data/sample.csv");
   try {
-    const csvContent = fs.readFileSync(csvFilePath, "utf-8");
     console.log("Processing CSV...");
-    const processedRows = await processCsv(csvContent);
-    console.log(`Successfully processed ${processedRows} rows from sample.csv`);
+    const result = await runLocal(csvFilePath);
+    console.log(`Successfully processed ${result.successCount}/${result.totalRecords} rows from sample.csv`);
+    if (result.errorCount > 0) {
+      console.log(`Errors: ${result.errorCount}, Error report: ${result.errorCsvPath}`);
+    }
   } catch (error) {
     console.error("Error during local test:", error);
   }

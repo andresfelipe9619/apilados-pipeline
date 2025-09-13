@@ -23,6 +23,11 @@ type Params = {
   stopCron: string;
   strapiBaseUrl: string;
   strapiToken: string;
+  // Optional processing configuration parameters
+  processMode?: "parallel" | "sequential";
+  omitGet?: boolean;
+  batchSize?: number;
+  chunkSize?: number;
 };
 
 export class ApiladosPipelineStack extends Stack {
@@ -64,12 +69,19 @@ export class ApiladosPipelineStack extends Stack {
         STRAPI_BASE_URL: p.strapiBaseUrl,
         STRAPI_TOKEN: p.strapiToken,
         S3_KEY_PREFIX: p.s3KeyPrefix,
-        CHUNK_SIZE: "150", // tune 100–200
+        // Processing configuration with defaults
+        PROCESS_MODE: p.processMode || "parallel",
+        OMIT_GET: (p.omitGet !== undefined ? p.omitGet : false).toString(),
+        BATCH_SIZE: (p.batchSize || 100).toString(),
+        CHUNK_SIZE: (p.chunkSize || 150).toString(),
       },
       bundling: {
         minify: true,
         externalModules: ["aws-sdk"], // provided in runtime
         sourceMap: true,
+        target: "ES2020",
+        platform: "node",
+        tsconfig: "lambda/ingest/tsconfig.json",
       },
       // reserve some concurrency to protect Strapi
       reservedConcurrentExecutions: 5,
