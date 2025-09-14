@@ -4,11 +4,11 @@
  */
 
 import { Readable } from "node:stream";
-import { ThreePhaseProcessingPipeline } from "./processing-pipeline";
-import { CacheManager } from "./cache";
-import { EntityManager } from "./entities";
-import { createErrorReporter } from "./error-reporter";
-import { ProcessingConfig } from "./types";
+import { ThreePhaseProcessingPipeline } from "../../processing-pipeline";
+import { CacheManager } from "../../cache";
+import { EntityManager } from "../../entities";
+import { createErrorReporter } from "../../error-reporter";
+import { ProcessingConfig } from "../../types";
 import axios from "axios";
 
 // Mock axios for integration tests

@@ -9,13 +9,13 @@ import { Command } from "commander";
 const program = new Command();
 import { resolve } from "node:path";
 import { existsSync } from "node:fs";
-import { runLocalTest } from "./local-test-runner";
-import { 
-  validateEnv, 
-  generateTestData, 
-  setupTestEnvironment, 
-  quickTest, 
-  showEnvironment 
+import { runLocalTest } from "local-test-runner";
+import {
+  validateEnv,
+  generateTestData,
+  setupTestEnvironment,
+  quickTest,
+  showEnvironment,
 } from "./dev-utils";
 import { ProcessingConfig } from "./types";
 
@@ -33,26 +33,26 @@ program
   .description("Validate environment configuration")
   .action(async () => {
     console.log("🔍 Validating environment configuration...\n");
-    
+
     const validation = validateEnv();
-    
+
     if (validation.isValid) {
       console.log("✅ Environment validation passed!");
     } else {
       console.log("❌ Environment validation failed:");
-      validation.errors.forEach(error => console.log(`   - ${error}`));
+      validation.errors.forEach((error) => console.log(`   - ${error}`));
     }
-    
+
     if (validation.warnings.length > 0) {
       console.log("\n⚠️  Warnings:");
-      validation.warnings.forEach(warning => console.log(`   - ${warning}`));
+      validation.warnings.forEach((warning) => console.log(`   - ${warning}`));
     }
-    
+
     if (validation.recommendations.length > 0) {
       console.log("\n💡 Recommendations:");
-      validation.recommendations.forEach(rec => console.log(`   - ${rec}`));
+      validation.recommendations.forEach((rec) => console.log(`   - ${rec}`));
     }
-    
+
     process.exit(validation.isValid ? 0 : 1);
   });
 
@@ -72,11 +72,11 @@ program
   .option("-c, --count <number>", "Number of records to generate", "20")
   .action(async (options: any) => {
     console.log(`📝 Generating test data in: ${options.output}`);
-    
+
     try {
       const recordCount = parseInt(options.count);
       const result = await generateTestData(options.output, recordCount);
-      
+
       console.log("✅ Test data generated successfully:");
       console.log(`   - Participations CSV: ${result.participationsCsv}`);
       console.log(`   - CCTs CSV: ${result.cctsCsv}`);
@@ -90,13 +90,17 @@ program
 program
   .command("setup")
   .description("Setup complete test environment")
-  .option("-d, --dir <directory>", "Test environment directory", "test-environment")
+  .option(
+    "-d, --dir <directory>",
+    "Test environment directory",
+    "test-environment",
+  )
   .action(async (options: any) => {
     console.log(`🏗️  Setting up test environment in: ${options.dir}`);
-    
+
     try {
       const result = await setupTestEnvironment(options.dir);
-      
+
       console.log("✅ Test environment created successfully:");
       console.log(`   - Directory: ${result.testDir}`);
       console.log(`   - Sample CSV: ${result.sampleCsv}`);
@@ -118,20 +122,22 @@ program
   .description("Run quick validation test with generated sample data")
   .action(async () => {
     console.log("🚀 Running quick validation test...");
-    
+
     try {
       const report = await quickTest();
-      
+
       console.log("\n📊 Quick Test Results:");
       console.log(`   - Total Records: ${report.result.totalRecords}`);
       console.log(`   - Successful: ${report.result.successCount}`);
       console.log(`   - Errors: ${report.result.errorCount}`);
-      console.log(`   - Processing Time: ${(report.result.processingTime / 1000).toFixed(2)}s`);
-      
+      console.log(
+        `   - Processing Time: ${(report.result.processingTime / 1000).toFixed(2)}s`,
+      );
+
       if (report.result.errorCount > 0) {
         console.log(`   - Error Report: ${report.result.errorCsvPath}`);
       }
-      
+
       process.exit(report.result.errorCount > 0 ? 1 : 0);
     } catch (error) {
       console.error("❌ Quick test failed:", error);
@@ -144,30 +150,34 @@ program
   .command("test")
   .description("Run migration test with CSV file")
   .argument("<csv-file>", "Path to CSV file to process")
-  .option("-m, --mode <mode>", "Processing mode: parallel or sequential", "parallel")
+  .option(
+    "-m, --mode <mode>",
+    "Processing mode: parallel or sequential",
+    "parallel",
+  )
   .option("--omit-get", "Skip GET requests for performance", false)
   .option("-b, --batch-size <size>", "Batch size for processing", "100")
   .option("-c, --chunk-size <size>", "Chunk size for S3 processing", "150")
   .option("--ccts <file>", "Path to CCTs CSV file")
   .action(async (csvFile: string, options: any) => {
     console.log(`🚀 Running migration test with: ${csvFile}`);
-    
+
     // Validate CSV file exists
     const csvPath = resolve(csvFile);
     if (!existsSync(csvPath)) {
       console.error(`❌ CSV file not found: ${csvPath}`);
       process.exit(1);
     }
-    
+
     // Validate environment first
     const validation = validateEnv();
     if (!validation.isValid) {
       console.error("❌ Environment validation failed:");
-      validation.errors.forEach(error => console.error(`   - ${error}`));
+      validation.errors.forEach((error) => console.error(`   - ${error}`));
       console.error("\nRun 'migration-cli validate' for more details");
       process.exit(1);
     }
-    
+
     try {
       // Build processing configuration
       const config: ProcessingConfig = {
@@ -176,37 +186,40 @@ program
         batchSize: parseInt(options.batchSize),
         chunkSize: parseInt(options.chunkSize),
       };
-      
+
       console.log("📋 Configuration:");
       console.log(`   - Processing Mode: ${config.processMode}`);
       console.log(`   - Omit GET: ${config.omitGet}`);
       console.log(`   - Batch Size: ${config.batchSize}`);
       console.log(`   - Chunk Size: ${config.chunkSize}`);
-      
+
       if (options.ccts) {
         console.log(`   - CCTs File: ${options.ccts}`);
       }
-      
+
       // Run the test
       const result = await runLocalTest(csvPath, config);
-      
+
       console.log("\n📊 Migration Test Results:");
-      console.log("=" .repeat(50));
+      console.log("=".repeat(50));
       console.log(`Total Records: ${result.totalRecords}`);
       console.log(`Successful: ${result.successCount}`);
       console.log(`Errors: ${result.errorCount}`);
-      console.log(`Success Rate: ${((result.successCount / result.totalRecords) * 100).toFixed(1)}%`);
-      console.log(`Processing Time: ${(result.processingTime / 1000).toFixed(2)} seconds`);
-      
+      console.log(
+        `Success Rate: ${((result.successCount / result.totalRecords) * 100).toFixed(1)}%`,
+      );
+      console.log(
+        `Processing Time: ${(result.processingTime / 1000).toFixed(2)} seconds`,
+      );
+
       if (result.errorCsvPath) {
         console.log(`Error Report: ${result.errorCsvPath}`);
       }
-      
-      console.log("=" .repeat(50));
-      
+
+      console.log("=".repeat(50));
+
       // Exit with error code if there were processing errors
       process.exit(result.errorCount > 0 ? 1 : 0);
-      
     } catch (error) {
       console.error("❌ Migration test failed:", error);
       process.exit(1);

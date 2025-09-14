@@ -9,10 +9,10 @@ import {
   EntityCreationPhase,
   BatchProcessingPhase,
   ThreePhaseProcessingPipeline,
-} from "./processing-pipeline";
-import { CacheManager } from "./cache";
-import { EntityManager } from "./entities";
-import { ProcessingConfig } from "./types";
+} from "../../processing-pipeline";
+import { CacheManager } from "../../cache";
+import { EntityManager } from "../../entities";
+import { ProcessingConfig } from "../../types";
 
 // Mock dependencies
 const mockApi = {

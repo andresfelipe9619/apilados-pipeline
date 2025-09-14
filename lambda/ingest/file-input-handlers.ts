@@ -4,10 +4,10 @@
  */
 
 import { Readable } from "node:stream";
-import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
+import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { S3Event } from "aws-lambda";
 import { createReadStream, existsSync } from "node:fs";
-import { FileInputHandler, ExecutionMode, LocalConfig } from "./types";
+import { ExecutionMode, FileInputHandler, LocalConfig } from "./types";
 
 /**
  * S3 file input handler for AWS execution mode
@@ -53,7 +53,7 @@ export class S3FileInputHandler implements FileInputHandler {
   async getParticipationsCsv(): Promise<Readable> {
     try {
       console.log(
-        `📥 Downloading participations CSV from S3: s3://${this.bucket}/${this.participationsKey}`
+        `📥 Downloading participations CSV from S3: s3://${this.bucket}/${this.participationsKey}`,
       );
 
       const command = new GetObjectCommand({
@@ -65,7 +65,7 @@ export class S3FileInputHandler implements FileInputHandler {
 
       if (!response.Body) {
         throw new Error(
-          `No body returned from S3 object: s3://${this.bucket}/${this.participationsKey}`
+          `No body returned from S3 object: s3://${this.bucket}/${this.participationsKey}`,
         );
       }
 
@@ -74,10 +74,10 @@ export class S3FileInputHandler implements FileInputHandler {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       console.error(
-        `❌ Failed to download participations CSV from S3: ${errorMessage}`
+        `❌ Failed to download participations CSV from S3: ${errorMessage}`,
       );
       throw new Error(
-        `S3 access failure for participations file: ${errorMessage}`
+        `S3 access failure for participations file: ${errorMessage}`,
       );
     }
   }
@@ -90,7 +90,7 @@ export class S3FileInputHandler implements FileInputHandler {
 
     try {
       console.log(
-        `📥 Attempting to download CCTs CSV from S3: s3://${this.bucket}/${this.cctsKey}`
+        `📥 Attempting to download CCTs CSV from S3: s3://${this.bucket}/${this.cctsKey}`,
       );
 
       const command = new GetObjectCommand({
@@ -102,7 +102,7 @@ export class S3FileInputHandler implements FileInputHandler {
 
       if (!response.Body) {
         console.log(
-          `⚠️  CCTs file exists but has no body: s3://${this.bucket}/${this.cctsKey}`
+          `⚠️  CCTs file exists but has no body: s3://${this.bucket}/${this.cctsKey}`,
         );
         return null;
       }
@@ -113,7 +113,7 @@ export class S3FileInputHandler implements FileInputHandler {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       console.log(
-        `ℹ️  CCTs file not found or inaccessible, continuing without it: ${errorMessage}`
+        `ℹ️  CCTs file not found or inaccessible, continuing without it: ${errorMessage}`,
       );
       return null;
     }
@@ -142,14 +142,14 @@ export class LocalFileInputHandler implements FileInputHandler {
     // Validate that the participations file exists
     if (!existsSync(this.participationsCsvPath)) {
       throw new Error(
-        `Participations CSV file not found: ${this.participationsCsvPath}`
+        `Participations CSV file not found: ${this.participationsCsvPath}`,
       );
     }
 
     // Validate CCTs file if specified
     if (this.cctsCsvPath && !existsSync(this.cctsCsvPath)) {
       console.warn(
-        `⚠️  CCTs CSV file not found: ${this.cctsCsvPath}. Will continue without it.`
+        `⚠️  CCTs CSV file not found: ${this.cctsCsvPath}. Will continue without it.`,
       );
       this.cctsCsvPath = undefined;
     }
@@ -158,13 +158,13 @@ export class LocalFileInputHandler implements FileInputHandler {
   getParticipationsCsv(): Promise<Readable> {
     try {
       console.log(
-        `📖 Reading participations CSV from local file: ${this.participationsCsvPath}`
+        `📖 Reading participations CSV from local file: ${this.participationsCsvPath}`,
       );
 
       // Verify file exists before creating stream
       if (!existsSync(this.participationsCsvPath)) {
         throw new Error(
-          `Participations CSV file not found: ${this.participationsCsvPath}`
+          `Participations CSV file not found: ${this.participationsCsvPath}`,
         );
       }
 
@@ -175,7 +175,7 @@ export class LocalFileInputHandler implements FileInputHandler {
       // Add error handling to the stream
       stream.on("error", (error) => {
         console.error(
-          `❌ Error reading participations CSV file: ${error.message}`
+          `❌ Error reading participations CSV file: ${error.message}`,
         );
         throw error;
       });
@@ -186,12 +186,12 @@ export class LocalFileInputHandler implements FileInputHandler {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       console.error(
-        `❌ Failed to read participations CSV file: ${errorMessage}`
+        `❌ Failed to read participations CSV file: ${errorMessage}`,
       );
       return Promise.reject(
         new Error(
-          `Local file access failure for participations file: ${errorMessage}`
-        )
+          `Local file access failure for participations file: ${errorMessage}`,
+        ),
       );
     }
   }
@@ -208,7 +208,7 @@ export class LocalFileInputHandler implements FileInputHandler {
       // Double-check file existence
       if (!existsSync(this.cctsCsvPath)) {
         console.log(
-          `ℹ️  CCTs CSV file not found: ${this.cctsCsvPath}. Continuing without it.`
+          `ℹ️  CCTs CSV file not found: ${this.cctsCsvPath}. Continuing without it.`,
         );
         return Promise.resolve(null);
       }
@@ -228,7 +228,7 @@ export class LocalFileInputHandler implements FileInputHandler {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       console.log(
-        `ℹ️  Failed to read CCTs CSV file, continuing without it: ${errorMessage}`
+        `ℹ️  Failed to read CCTs CSV file, continuing without it: ${errorMessage}`,
       );
       return Promise.resolve(null);
     }
@@ -256,12 +256,12 @@ export class FileInputHandlerFactory {
         return new S3FileInputHandler(event);
       } else if (localConfig && localConfig.participationsCsvPath) {
         console.log(
-          `🏭 Creating LocalFileInputHandler for local execution mode`
+          `🏭 Creating LocalFileInputHandler for local execution mode`,
         );
         return new LocalFileInputHandler(localConfig);
       } else {
         throw new Error(
-          "Unable to determine execution mode: neither S3 event nor local config provided"
+          "Unable to determine execution mode: neither S3 event nor local config provided",
         );
       }
     } catch (error) {
@@ -280,7 +280,7 @@ export class FileInputHandlerFactory {
    */
   static detectExecutionMode(
     event?: S3Event,
-    localConfig?: LocalConfig
+    localConfig?: LocalConfig,
   ): ExecutionMode {
     if (event && event.Records && event.Records.length > 0) {
       return "aws";
@@ -288,7 +288,7 @@ export class FileInputHandlerFactory {
       return "local";
     } else {
       throw new Error(
-        "Unable to determine execution mode: neither S3 event nor local config provided"
+        "Unable to determine execution mode: neither S3 event nor local config provided",
       );
     }
   }
@@ -302,7 +302,7 @@ export class FileInputHandlerFactory {
  */
 export function createFileInputHandler(
   event?: S3Event,
-  localConfig?: LocalConfig
+  localConfig?: LocalConfig,
 ): FileInputHandler {
   try {
     const handler = FileInputHandlerFactory.create(event, localConfig);
@@ -313,28 +313,28 @@ export function createFileInputHandler(
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error(
-      `❌ Critical error creating file input handler: ${errorMessage}`
+      `❌ Critical error creating file input handler: ${errorMessage}`,
     );
 
     // Provide helpful error messages for common issues
     if (!event && !localConfig) {
       throw new Error(
         "File input handler creation failed: No execution context provided. " +
-          "Please provide either an S3 event for AWS mode or local config for local mode."
+          "Please provide either an S3 event for AWS mode or local config for local mode.",
       );
     }
 
     if (event && (!event.Records || event.Records.length === 0)) {
       throw new Error(
         "File input handler creation failed: S3 event provided but contains no records. " +
-          "Please ensure the S3 event is properly formatted."
+          "Please ensure the S3 event is properly formatted.",
       );
     }
 
     if (localConfig && !localConfig.participationsCsvPath) {
       throw new Error(
         "File input handler creation failed: Local config provided but missing participationsCsvPath. " +
-          "Please provide a valid path to the participations CSV file."
+          "Please provide a valid path to the participations CSV file.",
       );
     }
 
@@ -350,7 +350,7 @@ export function createFileInputHandler(
  */
 export function validateFileInputConfig(
   event?: S3Event,
-  localConfig?: LocalConfig
+  localConfig?: LocalConfig,
 ): { isValid: boolean; errors: string[]; warnings: string[] } {
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -358,7 +358,7 @@ export function validateFileInputConfig(
   // Check if any configuration is provided
   if (!event && !localConfig) {
     errors.push(
-      "No execution context provided (neither S3 event nor local config)"
+      "No execution context provided (neither S3 event nor local config)",
     );
     return { isValid: false, errors, warnings };
   }
@@ -379,7 +379,7 @@ export function validateFileInputConfig(
       // Check for multiple records (warning)
       if (event.Records.length > 1) {
         warnings.push(
-          `S3 event contains ${event.Records.length} records, only the first will be processed`
+          `S3 event contains ${event.Records.length} records, only the first will be processed`,
         );
       }
     }
@@ -393,7 +393,7 @@ export function validateFileInputConfig(
       // Check if file exists (this is a warning since the file might be created later)
       if (!existsSync(localConfig.participationsCsvPath)) {
         warnings.push(
-          `Participations CSV file does not exist: ${localConfig.participationsCsvPath}`
+          `Participations CSV file does not exist: ${localConfig.participationsCsvPath}`,
         );
       }
     }
@@ -406,7 +406,7 @@ export function validateFileInputConfig(
   // Check for conflicting configurations
   if (event && localConfig) {
     warnings.push(
-      "Both S3 event and local config provided, S3 event will take precedence"
+      "Both S3 event and local config provided, S3 event will take precedence",
     );
   }
 

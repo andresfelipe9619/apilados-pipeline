@@ -46,7 +46,7 @@ export class MigrationLocalTestRunner implements LocalTestRunner {
   constructor() {
     // Initialize environment configuration
     this.envConfig = loadEnvironmentConfig();
-    
+
     // Initialize API client
     this.api = axios.create({
       baseURL: this.envConfig.strapiBaseUrl,
@@ -64,12 +64,15 @@ export class MigrationLocalTestRunner implements LocalTestRunner {
    * @param config - Optional processing configuration overrides
    * @returns Migration result with statistics
    */
-  async runWithCsv(csvPath: string, config?: ProcessingConfig): Promise<MigrationResult> {
+  async runWithCsv(
+    csvPath: string,
+    config?: ProcessingConfig,
+  ): Promise<MigrationResult> {
     console.log("🚀 Starting local migration test run");
     console.log(`📁 CSV file: ${csvPath}`);
-    
+
     this.startTime = Date.now();
-    
+
     try {
       // Validate environment before starting
       if (!this.validateEnvironment()) {
@@ -79,25 +82,39 @@ export class MigrationLocalTestRunner implements LocalTestRunner {
       // Create local configuration
       const localConfig: LocalConfig = {
         participationsCsvPath: resolve(csvPath),
-        outputPath: join(process.cwd(), `migration-results-${Date.now()}.csv`)
+        outputPath: join(process.cwd(), `migration-results-${Date.now()}.csv`),
       };
 
       // Create processing configuration
       const processingConfig = createProcessingConfig(config);
 
       // Validate complete configuration
-      const validation = validateConfiguration("local", this.envConfig, localConfig, processingConfig);
+      const validation = validateConfiguration(
+        "local",
+        this.envConfig,
+        localConfig,
+        processingConfig,
+      );
       logValidationResults(validation, "Local Test Run");
 
       if (!validation.isValid) {
-        throw new Error(`Configuration validation failed: ${validation.errors.join(", ")}`);
+        throw new Error(
+          `Configuration validation failed: ${validation.errors.join(", ")}`,
+        );
       }
 
       // Initialize components
       const fileHandler = new LocalFileInputHandler(localConfig);
-      const errorReporter = createErrorReporter("local", localConfig.outputPath);
+      const errorReporter = createErrorReporter(
+        "local",
+        localConfig.outputPath,
+      );
       const cacheManager = new CacheManager(this.api);
-      const entityManager = new EntityManager(this.api, cacheManager, processingConfig);
+      const entityManager = new EntityManager(
+        this.api,
+        cacheManager,
+        processingConfig,
+      );
 
       console.log("✅ Components initialized successfully");
 
@@ -112,7 +129,9 @@ export class MigrationLocalTestRunner implements LocalTestRunner {
       const { records, unique } = await this.analyzeCSV(participationsCsv);
       console.log(`   - Processed ${records.length} records`);
       console.log(`   - Found ${unique.programas.size} unique programs`);
-      console.log(`   - Found ${unique.implementaciones.size} unique implementations`);
+      console.log(
+        `   - Found ${unique.implementaciones.size} unique implementations`,
+      );
       console.log(`   - Found ${unique.ccts.size} unique CCTs`);
 
       // Phase 2: Pre-loading and entity creation
@@ -127,7 +146,7 @@ export class MigrationLocalTestRunner implements LocalTestRunner {
         cacheManager,
         entityManager,
         errorReporter,
-        processingConfig
+        processingConfig,
       );
 
       this.endTime = Date.now();
@@ -144,25 +163,25 @@ export class MigrationLocalTestRunner implements LocalTestRunner {
         ...result,
         processingTime,
         errorCsvPath,
-        totalRecords: records.length
+        totalRecords: records.length,
       };
 
       // Log final results
       this.logResults(finalResult);
 
       return finalResult;
-
     } catch (error) {
       this.endTime = Date.now();
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       console.error(`❌ Local test run failed: ${errorMessage}`);
-      
+
       return {
         successCount: 0,
         errorCount: 1,
         processingTime: this.endTime - this.startTime,
         totalRecords: 0,
-        errorCsvPath: undefined
+        errorCsvPath: undefined,
       };
     }
   }
@@ -173,19 +192,19 @@ export class MigrationLocalTestRunner implements LocalTestRunner {
    */
   validateEnvironment(): boolean {
     console.log("🔍 Validating environment configuration");
-    
+
     const validation = validateConfiguration("local", this.envConfig);
     logValidationResults(validation, "Environment Validation");
-    
+
     if (!validation.isValid) {
       console.error("❌ Environment validation failed:");
-      validation.errors.forEach(error => console.error(`   - ${error}`));
+      validation.errors.forEach((error) => console.error(`   - ${error}`));
       return false;
     }
 
     if (validation.warnings.length > 0) {
       console.warn("⚠️  Environment warnings:");
-      validation.warnings.forEach(warning => console.warn(`   - ${warning}`));
+      validation.warnings.forEach((warning) => console.warn(`   - ${warning}`));
     }
 
     console.log("✅ Environment validation passed");
@@ -204,10 +223,10 @@ export class MigrationLocalTestRunner implements LocalTestRunner {
         successCount: 0,
         errorCount: 0,
         processingTime: this.endTime - this.startTime,
-        totalRecords: 0
+        totalRecords: 0,
       },
       errors: [],
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
   }
 
@@ -216,7 +235,9 @@ export class MigrationLocalTestRunner implements LocalTestRunner {
    * @param csvStream - Readable stream of CSV data
    * @returns Records and unique entity sets
    */
-  private async analyzeCSV(csvStream: Readable): Promise<{ records: CsvRow[], unique: UniqueSets }> {
+  private async analyzeCSV(
+    csvStream: Readable,
+  ): Promise<{ records: CsvRow[]; unique: UniqueSets }> {
     const records: CsvRow[] = [];
     const unique: UniqueSets = {
       ccts: new Set<string>(),
@@ -232,13 +253,17 @@ export class MigrationLocalTestRunner implements LocalTestRunner {
         .pipe(csvParser({ mapHeaders: normalizeHeaders }))
         .on("data", (row: CsvRow) => {
           records.push(row);
-          
+
           // Collect unique entities
           if (row.cct) unique.ccts.add(String(row.cct));
           if (row.programa) unique.programas.add(String(row.programa));
-          
+
           // Implementaciones
-          if (row.implementacion && row.ciclo_escolar && row.periodo_de_implementacion) {
+          if (
+            row.implementacion &&
+            row.ciclo_escolar &&
+            row.periodo_de_implementacion
+          ) {
             const implKey = `${row.implementacion}|${row.ciclo_escolar}|${row.periodo_de_implementacion}`;
             if (!unique.implementaciones.has(implKey)) {
               unique.implementaciones.set(implKey, {
@@ -249,16 +274,24 @@ export class MigrationLocalTestRunner implements LocalTestRunner {
               });
             }
           }
-          
+
           // Asistencias y modalidades
           Object.keys(row).forEach((k) => {
-            if (k.startsWith("asist_") || k.startsWith("trip") || k.startsWith("ses")) {
+            if (
+              k.startsWith("asist_") ||
+              k.startsWith("trip") ||
+              k.startsWith("ses")
+            ) {
               unique.asistenciaFields.add(k);
               const modKey = `modalidad_${k}`;
               const rawVal = row[modKey];
-              const modVal = typeof rawVal === "string" ? rawVal.trim() : 
-                rawVal === undefined || rawVal === null ? "" : String(rawVal).trim();
-              
+              const modVal =
+                typeof rawVal === "string"
+                  ? rawVal.trim()
+                  : rawVal === undefined || rawVal === null
+                    ? ""
+                    : String(rawVal).trim();
+
               if (modVal && modVal.toUpperCase() !== "NA") {
                 const implKey = `${row.implementacion}|${row.ciclo_escolar}|${row.periodo_de_implementacion}`;
                 const mapKey = `${implKey}|${k}`;
@@ -286,20 +319,20 @@ export class MigrationLocalTestRunner implements LocalTestRunner {
     unique: UniqueSets,
     cacheManager: CacheManager,
     entityManager: EntityManager,
-    cctsCsv?: Readable | null
+    cctsCsv?: Readable | null,
   ): Promise<void> {
     // Cache is already initialized in constructor
-    
+
     // Load CCTs if available
     if (cctsCsv) {
       console.log("   - Loading CCTs from CSV");
       await this.loadCCTsFromCSV(cctsCsv, cacheManager);
     }
-    
+
     // Pre-cache simple entities
     console.log("   - Pre-caching simple entities");
     await entityManager.precacheSimpleEntities("encuestas", "clave");
-    
+
     console.log("   - Entity pre-loading completed");
   }
 
@@ -308,7 +341,10 @@ export class MigrationLocalTestRunner implements LocalTestRunner {
    * @param cctsCsv - CCTs CSV stream
    * @param cacheManager - Cache manager instance
    */
-  private async loadCCTsFromCSV(cctsCsv: Readable, cacheManager: CacheManager): Promise<void> {
+  private async loadCCTsFromCSV(
+    cctsCsv: Readable,
+    cacheManager: CacheManager,
+  ): Promise<void> {
     return new Promise((resolve, reject) => {
       cctsCsv
         .pipe(csvParser({ mapHeaders: normalizeHeaders }))
@@ -338,31 +374,41 @@ export class MigrationLocalTestRunner implements LocalTestRunner {
     cacheManager: CacheManager,
     entityManager: EntityManager,
     errorReporter: any,
-    config: ProcessingConfig
+    config: ProcessingConfig,
   ): Promise<{ successCount: number; errorCount: number }> {
     let successCount = 0;
     let errorCount = 0;
-    
+
     const batchSize = config.batchSize;
     const totalBatches = Math.ceil(records.length / batchSize);
-    
-    console.log(`   - Processing ${records.length} records in ${totalBatches} batches of ${batchSize}`);
-    
+
+    console.log(
+      `   - Processing ${records.length} records in ${totalBatches} batches of ${batchSize}`,
+    );
+
     for (let i = 0; i < records.length; i += batchSize) {
       const batch = records.slice(i, i + batchSize);
       const batchNumber = Math.floor(i / batchSize) + 1;
-      
-      console.log(`   - Processing batch ${batchNumber}/${totalBatches} (${batch.length} records)`);
-      
+
+      console.log(
+        `   - Processing batch ${batchNumber}/${totalBatches} (${batch.length} records)`,
+      );
+
       if (config.processMode === "parallel") {
         // Process batch in parallel
         const results = await Promise.allSettled(
-          batch.map((record, index) => 
-            this.processParticipationRow(record as ParticipantCsvRow, cacheManager, entityManager, errorReporter, i + index + 1)
-          )
+          batch.map((record, index) =>
+            this.processParticipationRow(
+              record as ParticipantCsvRow,
+              cacheManager,
+              entityManager,
+              errorReporter,
+              i + index + 1,
+            ),
+          ),
         );
-        
-        results.forEach(result => {
+
+        results.forEach((result) => {
           if (result.status === "fulfilled") {
             successCount++;
           } else {
@@ -374,11 +420,11 @@ export class MigrationLocalTestRunner implements LocalTestRunner {
         for (let j = 0; j < batch.length; j++) {
           try {
             await this.processParticipationRow(
-              batch[j] as ParticipantCsvRow, 
-              cacheManager, 
-              entityManager, 
-              errorReporter, 
-              i + j + 1
+              batch[j] as ParticipantCsvRow,
+              cacheManager,
+              entityManager,
+              errorReporter,
+              i + j + 1,
             );
             successCount++;
           } catch (error) {
@@ -386,13 +432,15 @@ export class MigrationLocalTestRunner implements LocalTestRunner {
           }
         }
       }
-      
+
       // Progress reporting
       const processed = Math.min(i + batchSize, records.length);
       const progress = ((processed / records.length) * 100).toFixed(1);
-      console.log(`   - Progress: ${processed}/${records.length} (${progress}%)`);
+      console.log(
+        `   - Progress: ${processed}/${records.length} (${progress}%)`,
+      );
     }
-    
+
     return { successCount, errorCount };
   }
 
@@ -409,7 +457,7 @@ export class MigrationLocalTestRunner implements LocalTestRunner {
     cacheManager: CacheManager,
     entityManager: EntityManager,
     errorReporter: ErrorReporter,
-    rowNumber: number
+    rowNumber: number,
   ): Promise<void> {
     try {
       // Get implementation ID from cache
@@ -418,7 +466,10 @@ export class MigrationLocalTestRunner implements LocalTestRunner {
         row.ciclo_escolar || "",
         row.periodo_de_implementacion || "",
       );
-      const implementacionId = cacheManager.getCachedId("implementaciones", implementacionKey);
+      const implementacionId = cacheManager.getCachedId(
+        "implementaciones",
+        implementacionKey,
+      );
       const cctId = row.cct ? cacheManager.getCachedId("ccts", row.cct) : null;
 
       // Handle participant creation/lookup
@@ -437,10 +488,14 @@ export class MigrationLocalTestRunner implements LocalTestRunner {
           segundo_apellido: row.segundo_apellido,
           nombre_completo: row.nombre_completo,
           entidad: row.entidad,
-          estado_civil: row.estado_civil?.toUpperCase() !== "NA" ? row.estado_civil : null,
+          estado_civil:
+            row.estado_civil?.toUpperCase() !== "NA" ? row.estado_civil : null,
           lengua_indigena: toBoolean(row.lengua_indigena),
           hablante_maya: toBoolean(row.hablante_maya),
-          nivel_educativo: row.nivel_educativo?.toUpperCase() !== "NA" ? row.nivel_educativo : null,
+          nivel_educativo:
+            row.nivel_educativo?.toUpperCase() !== "NA"
+              ? row.nivel_educativo
+              : null,
           cct: cctId,
         },
         "participantes",
@@ -449,7 +504,7 @@ export class MigrationLocalTestRunner implements LocalTestRunner {
 
       if (!participantId || !implementacionId) {
         throw new Error(
-          `Missing critical IDs for participant ${row.id}. ParticipantID: ${participantId}, ImplementacionID: ${implementacionId}`
+          `Missing critical IDs for participant ${row.id}. ParticipantID: ${participantId}, ImplementacionID: ${implementacionId}`,
         );
       }
 
@@ -477,11 +532,18 @@ export class MigrationLocalTestRunner implements LocalTestRunner {
       }
 
       console.log(`   ✅ Processed participant ${row.id} successfully`);
-
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      errorReporter.logError(row.id || "UNKNOWN", row.email || "NO_EMAIL", errorMessage, rowNumber);
-      console.error(`   ❌ Failed to process participant ${row.id}: ${errorMessage}`);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      errorReporter.logError(
+        row.id || "UNKNOWN",
+        row.email || "NO_EMAIL",
+        errorMessage,
+        rowNumber,
+      );
+      console.error(
+        `   ❌ Failed to process participant ${row.id}: ${errorMessage}`,
+      );
       throw error;
     }
   }
@@ -491,7 +553,10 @@ export class MigrationLocalTestRunner implements LocalTestRunner {
    * @param row - Participant CSV row
    * @param participantId - Participant ID
    */
-  private async handleParticipantEmail(row: ParticipantCsvRow, participantId: number): Promise<void> {
+  private async handleParticipantEmail(
+    row: ParticipantCsvRow,
+    participantId: number,
+  ): Promise<void> {
     const email = row.email?.trim();
     if (!email || email.toUpperCase() === "NA") return;
 
@@ -512,18 +577,22 @@ export class MigrationLocalTestRunner implements LocalTestRunner {
    */
   private logResults(result: MigrationResult): void {
     console.log("\n📊 Migration Test Results:");
-    console.log("=" .repeat(50));
+    console.log("=".repeat(50));
     console.log(`Total Records: ${result.totalRecords}`);
     console.log(`Successful: ${result.successCount}`);
     console.log(`Errors: ${result.errorCount}`);
-    console.log(`Success Rate: ${((result.successCount / result.totalRecords) * 100).toFixed(1)}%`);
-    console.log(`Processing Time: ${(result.processingTime / 1000).toFixed(2)} seconds`);
-    
+    console.log(
+      `Success Rate: ${((result.successCount / result.totalRecords) * 100).toFixed(1)}%`,
+    );
+    console.log(
+      `Processing Time: ${(result.processingTime / 1000).toFixed(2)} seconds`,
+    );
+
     if (result.errorCsvPath) {
       console.log(`Error Report: ${result.errorCsvPath}`);
     }
-    
-    console.log("=" .repeat(50));
+
+    console.log("=".repeat(50));
   }
 }
 
@@ -541,7 +610,10 @@ export function createLocalTestRunner(): LocalTestRunner {
  * @param config - Optional processing configuration
  * @returns Migration result
  */
-export async function runLocalTest(csvPath: string, config?: ProcessingConfig): Promise<MigrationResult> {
+export async function runLocalTest(
+  csvPath: string,
+  config?: ProcessingConfig,
+): Promise<MigrationResult> {
   const runner = createLocalTestRunner();
   return await runner.runWithCsv(csvPath, config);
 }

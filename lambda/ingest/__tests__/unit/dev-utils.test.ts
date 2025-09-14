@@ -2,13 +2,13 @@
  * Unit tests for development utilities
  */
 
-import { DevUtils } from "./dev-utils";
+import { DevUtils } from "../../dev-utils";
 
 // Mock dependencies
 jest.mock("node:fs/promises");
 jest.mock("node:fs");
-jest.mock("./config");
-jest.mock("./local-test-runner");
+jest.mock("../../config");
+jest.mock("lambda/ingest/__tests__/unit/local-test-runner");
 
 describe("DevUtils", () => {
   let devUtils: DevUtils;
@@ -23,7 +23,7 @@ describe("DevUtils", () => {
     it("should return singleton instance", () => {
       const instance1 = DevUtils.getInstance();
       const instance2 = DevUtils.getInstance();
-      
+
       expect(instance1).toBe(instance2);
       expect(instance1).toBeInstanceOf(DevUtils);
     });
@@ -31,21 +31,24 @@ describe("DevUtils", () => {
 
   describe("validateEnvironmentSetup", () => {
     it("should validate complete environment setup", () => {
-      const { loadEnvironmentConfig, validateConfiguration } = require("./config");
-      
+      const {
+        loadEnvironmentConfig,
+        validateConfiguration,
+      } = require("../../config");
+
       loadEnvironmentConfig.mockReturnValue({
         strapiBaseUrl: "https://api.example.com",
         strapiToken: "test-token",
         processMode: "parallel",
         omitGet: false,
         batchSize: 100,
-        chunkSize: 150
+        chunkSize: 150,
       });
-      
+
       validateConfiguration.mockReturnValue({
         isValid: true,
         errors: [],
-        warnings: []
+        warnings: [],
       });
 
       devUtils = DevUtils.getInstance();
@@ -57,21 +60,24 @@ describe("DevUtils", () => {
     });
 
     it("should detect environment validation errors", () => {
-      const { loadEnvironmentConfig, validateConfiguration } = require("./config");
-      
+      const {
+        loadEnvironmentConfig,
+        validateConfiguration,
+      } = require("../../config");
+
       loadEnvironmentConfig.mockReturnValue({
         strapiBaseUrl: "",
         strapiToken: "",
         processMode: "parallel",
         omitGet: false,
         batchSize: 100,
-        chunkSize: 150
+        chunkSize: 150,
       });
-      
+
       validateConfiguration.mockReturnValue({
         isValid: false,
         errors: ["STRAPI_BASE_URL is required", "STRAPI_TOKEN is required"],
-        warnings: []
+        warnings: [],
       });
 
       devUtils = DevUtils.getInstance();
@@ -87,7 +93,7 @@ describe("DevUtils", () => {
     it("should create test environment successfully", async () => {
       const { writeFile, mkdir } = require("node:fs/promises");
       const { existsSync } = require("node:fs");
-      
+
       existsSync.mockReturnValue(false);
       writeFile.mockResolvedValue(undefined);
       mkdir.mockResolvedValue(undefined);
@@ -104,13 +110,15 @@ describe("DevUtils", () => {
     it("should handle creation errors", async () => {
       const { writeFile, mkdir } = require("node:fs/promises");
       const { existsSync } = require("node:fs");
-      
+
       existsSync.mockReturnValue(false);
       mkdir.mockRejectedValue(new Error("Permission denied"));
 
       devUtils = DevUtils.getInstance();
-      
-      await expect(devUtils.createTestEnvironment()).rejects.toThrow("Permission denied");
+
+      await expect(devUtils.createTestEnvironment()).rejects.toThrow(
+        "Permission denied",
+      );
     });
   });
 
@@ -155,48 +163,54 @@ describe("DevUtils", () => {
       writeFile.mockRejectedValue(new Error("Write failed"));
 
       devUtils = DevUtils.getInstance();
-      
-      await expect(devUtils.generateSampleCctsCsv("ccts.csv")).rejects.toThrow("Write failed");
+
+      await expect(devUtils.generateSampleCctsCsv("ccts.csv")).rejects.toThrow(
+        "Write failed",
+      );
     });
   });
 
   describe("displayEnvironmentSummary", () => {
     it("should display environment summary", () => {
-      const { loadEnvironmentConfig } = require("./config");
+      const { loadEnvironmentConfig } = require("../../config");
       const consoleSpy = jest.spyOn(console, "log").mockImplementation();
-      
+
       loadEnvironmentConfig.mockReturnValue({
         strapiBaseUrl: "https://api.example.com",
         strapiToken: "test-token",
         processMode: "parallel",
         omitGet: false,
         batchSize: 100,
-        chunkSize: 150
+        chunkSize: 150,
       });
 
       devUtils = DevUtils.getInstance();
       devUtils.displayEnvironmentSummary();
 
-      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("Environment Configuration Summary"));
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Environment Configuration Summary"),
+      );
       consoleSpy.mockRestore();
     });
   });
 
   describe("runQuickTest", () => {
     it("should run quick test successfully", async () => {
-      const { createLocalTestRunner } = require("./local-test-runner");
+      const {
+        createLocalTestRunner,
+      } = require("lambda/ingest/__tests__/unit/local-test-runner");
       const { writeFile } = require("node:fs/promises");
-      
+
       writeFile.mockResolvedValue(undefined);
-      
+
       const mockTestRunner = {
         validateEnvironment: jest.fn().mockReturnValue(true),
         runWithCsv: jest.fn().mockResolvedValue({
           totalRecords: 5,
           successCount: 5,
           errorCount: 0,
-          processingTime: 1000
-        })
+          processingTime: 1000,
+        }),
       };
       createLocalTestRunner.mockReturnValue(mockTestRunner);
 
@@ -209,19 +223,21 @@ describe("DevUtils", () => {
     });
 
     it("should handle test execution errors", async () => {
-      const { createLocalTestRunner } = require("./local-test-runner");
+      const {
+        createLocalTestRunner,
+      } = require("lambda/ingest/__tests__/unit/local-test-runner");
       const { writeFile } = require("node:fs/promises");
-      
+
       writeFile.mockResolvedValue(undefined);
-      
+
       const mockTestRunner = {
         validateEnvironment: jest.fn().mockReturnValue(true),
-        runWithCsv: jest.fn().mockRejectedValue(new Error("Test failed"))
+        runWithCsv: jest.fn().mockRejectedValue(new Error("Test failed")),
       };
       createLocalTestRunner.mockReturnValue(mockTestRunner);
 
       devUtils = DevUtils.getInstance();
-      
+
       await expect(devUtils.runQuickTest()).rejects.toThrow("Test failed");
     });
   });

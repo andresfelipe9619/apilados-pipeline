@@ -3,7 +3,7 @@
  * Handles all entity caching with proper TypeScript typing
  */
 
-import { CacheMaps, StrapiListResponse, StrapiEntity } from "./types";
+import { CacheMaps, StrapiEntity, StrapiListResponse } from "./types";
 import { AxiosInstance } from "axios";
 import { createCacheKey, formatError } from "./utils";
 
@@ -104,7 +104,7 @@ export class CacheManager {
       if (parts.length >= 2) {
         const implId = parseInt(parts[1]);
         const hasImpl = Array.from(
-          this.cache.implementaciones.values()
+          this.cache.implementaciones.values(),
         ).includes(implId);
         if (!hasImpl) {
           orphanedModules++;
@@ -128,7 +128,7 @@ export class CacheManager {
   async precacheSimpleEntities(
     endpoint: string,
     fieldName: string,
-    localCache: Map<string, number>
+    localCache: Map<string, number>,
   ): Promise<void> {
     console.log(`[CACHE] Downloading all ${endpoint} entities by pages...`);
 
@@ -141,7 +141,7 @@ export class CacheManager {
         const { data: res } = await this.api.get<
           StrapiListResponse<StrapiEntity & Record<string, unknown>>
         >(
-          `/${endpoint}?pagination[page]=${page}&pagination[pageSize]=${pageSize}&fields=id,${fieldName}`
+          `/${endpoint}?pagination[page]=${page}&pagination[pageSize]=${pageSize}&fields=id,${fieldName}`,
         );
 
         if (!res.data.length) break;
@@ -169,7 +169,7 @@ export class CacheManager {
    * Load CCTs from CSV data and store in cache
    */
   async loadCctsFromCsv(
-    csvData: Array<{ clave: string; id: string }>
+    csvData: Array<{ clave: string; id: string }>,
   ): Promise<void> {
     console.log(`[CACHE] Loading ${csvData.length} CCTs from CSV data...`);
 
@@ -213,7 +213,7 @@ export class CacheManager {
    */
   createImplementationCacheKey(
     entityName: string,
-    implementationId: number
+    implementationId: number,
   ): string {
     return createCacheKey([entityName, implementationId.toString()]);
   }
@@ -224,7 +224,7 @@ export class CacheManager {
   createImplementationKey(
     nombre: string,
     cicloEscolar: string,
-    periodo: string
+    periodo: string,
   ): string {
     return createCacheKey([nombre, cicloEscolar, periodo]);
   }
@@ -234,7 +234,7 @@ export class CacheManager {
    */
   bulkSetCache(
     cacheType: keyof CacheMaps,
-    entries: Array<{ key: string; id: number }>
+    entries: Array<{ key: string; id: number }>,
   ): void {
     const cache = this.cache[cacheType];
     for (const { key, id } of entries) {
@@ -293,7 +293,7 @@ export class CacheManager {
    */
   findCacheEntries(
     cacheType: keyof CacheMaps,
-    partialKey: string
+    partialKey: string,
   ): Array<{ key: string; id: number }> {
     const cache = this.cache[cacheType];
     const results: Array<{ key: string; id: number }> = [];

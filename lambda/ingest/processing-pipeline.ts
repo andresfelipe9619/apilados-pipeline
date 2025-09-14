@@ -7,14 +7,14 @@ import { Readable } from "node:stream";
 import csvParser from "csv-parser";
 import {
   CsvRow,
-  UniqueSets,
+  ErrorRecord,
+  MigrationResult,
   ParticipantCsvRow,
   ProcessingConfig,
-  MigrationResult,
   ProcessingStats,
-  ErrorRecord,
+  UniqueSets,
 } from "./types";
-import { normalizeHeaders, formatError, toBoolean, toNumber } from "./utils";
+import { formatError, normalizeHeaders, toBoolean, toNumber } from "./utils";
 import { CacheManager } from "./cache";
 import { EntityManager } from "./entities";
 import { AxiosInstance } from "axios";
@@ -110,13 +110,13 @@ export class CsvAnalysisPhase {
               const memUsage = process.memoryUsage();
               console.log(
                 `   → Analysis progress: ${processedRows} rows processed, ` +
-                  `Memory: ${Math.round(memUsage.heapUsed / 1024 / 1024)}MB`
+                  `Memory: ${Math.round(memUsage.heapUsed / 1024 / 1024)}MB`,
               );
             }
           } catch (error) {
             console.error(
               `[ERROR] Failed to process row ${processedRows}:`,
-              formatError(error)
+              formatError(error),
             );
             // Continue processing other rows
           }
@@ -135,10 +135,10 @@ export class CsvAnalysisPhase {
 
           console.timeEnd("CSV Analysis Phase");
           console.log(
-            `→ ${processedRows} rows analyzed. Found ${uniqueSets.implementaciones.size} unique implementations.`
+            `→ ${processedRows} rows analyzed. Found ${uniqueSets.implementaciones.size} unique implementations.`,
           );
           console.log(
-            `→ Memory usage: ${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`
+            `→ Memory usage: ${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`,
           );
 
           resolve({
@@ -159,7 +159,7 @@ export class CsvAnalysisPhase {
    */
   private collectAttendanceFields(
     row: ParticipantCsvRow,
-    uniqueSets: UniqueSets
+    uniqueSets: UniqueSets,
   ): void {
     Object.keys(row).forEach((key) => {
       if (
@@ -186,7 +186,7 @@ export class CsvAnalysisPhase {
             ) {
               console.warn(
                 `[WARN] Conflicting modality for ${key} in implementation ${implKey}: ` +
-                  `"${uniqueSets.asistenciaModalities.get(mapKey)}" vs "${modVal}"`
+                  `"${uniqueSets.asistenciaModalities.get(mapKey)}" vs "${modVal}"`,
               );
             } else {
               uniqueSets.asistenciaModalities.set(mapKey, modVal);
@@ -202,7 +202,7 @@ export class CsvAnalysisPhase {
    */
   private collectWorkFields(
     row: ParticipantCsvRow,
-    uniqueSets: UniqueSets
+    uniqueSets: UniqueSets,
   ): void {
     Object.keys(row).forEach((key) => {
       if (key.startsWith("trabajo") || key.startsWith("evidencia")) {
@@ -231,7 +231,7 @@ export class EntityCreationPhase {
   constructor(
     entityManager: EntityManager,
     cacheManager: CacheManager,
-    processingConfig: ProcessingConfig
+    processingConfig: ProcessingConfig,
   ) {
     this.entityManager = entityManager;
     this.cacheManager = cacheManager;
@@ -244,7 +244,7 @@ export class EntityCreationPhase {
    */
   async executeCreationPhase(
     uniqueSets: UniqueSets,
-    cctsCsv?: Readable
+    cctsCsv?: Readable,
   ): Promise<void> {
     console.log("\n--- PHASE 2: Pre-loading and creating parent entities ---");
     console.time("Entity Creation Phase");
@@ -269,7 +269,7 @@ export class EntityCreationPhase {
     } catch (error) {
       console.error(
         "[ERROR] Entity creation phase failed:",
-        formatError(error)
+        formatError(error),
       );
       throw error;
     }
@@ -303,10 +303,10 @@ export class EntityCreationPhase {
    * Create programs in sequential order to avoid race conditions
    */
   private async createProgramsSequentially(
-    uniquePrograms: Set<string>
+    uniquePrograms: Set<string>,
   ): Promise<void> {
     console.log(
-      `[STEP 2] Creating ${uniquePrograms.size} programs sequentially...`
+      `[STEP 2] Creating ${uniquePrograms.size} programs sequentially...`,
     );
 
     let createdCount = 0;
@@ -319,7 +319,7 @@ export class EntityCreationPhase {
           { nombre: programName },
           { nombre: programName },
           "programas",
-          programName
+          programName,
         );
 
         createdCount++;
@@ -331,7 +331,7 @@ export class EntityCreationPhase {
       } catch (error) {
         console.error(
           `[ERROR] Failed to create program "${programName}":`,
-          formatError(error)
+          formatError(error),
         );
         throw error;
       }
@@ -353,10 +353,10 @@ export class EntityCreationPhase {
         periodo: string | undefined;
         programa: string | undefined;
       }
-    >
+    >,
   ): Promise<void> {
     console.log(
-      `[STEP 3] Creating ${uniqueImplementations.size} implementations sequentially...`
+      `[STEP 3] Creating ${uniqueImplementations.size} implementations sequentially...`,
     );
 
     const cache = this.cacheManager.getCache();
@@ -369,7 +369,7 @@ export class EntityCreationPhase {
       try {
         if (!impl.programa) {
           console.warn(
-            `[WARN] Implementation ${implKey} has no program, skipping`
+            `[WARN] Implementation ${implKey} has no program, skipping`,
           );
           continue;
         }
@@ -395,7 +395,7 @@ export class EntityCreationPhase {
             encuestas: surveyIds,
           },
           "implementaciones",
-          implKey
+          implKey,
         );
 
         createdCount++;
@@ -403,13 +403,13 @@ export class EntityCreationPhase {
         // Progress logging
         if (createdCount % 5 === 0 || createdCount === totalCount) {
           console.log(
-            `   → Implementations progress: ${createdCount}/${totalCount}`
+            `   → Implementations progress: ${createdCount}/${totalCount}`,
           );
         }
       } catch (error) {
         console.error(
           `[ERROR] Failed to create implementation "${implKey}":`,
-          formatError(error)
+          formatError(error),
         );
         throw error;
       }
@@ -423,7 +423,7 @@ export class EntityCreationPhase {
    * Create entities that depend on implementations (modules, attendances, jobs)
    */
   private async createImplementationDependentEntities(
-    uniqueSets: UniqueSets
+    uniqueSets: UniqueSets,
   ): Promise<void> {
     console.log("[STEP 4] Creating implementation-dependent entities...");
 
@@ -444,13 +444,13 @@ export class EntityCreationPhase {
           implKey,
           implementacionId,
           uniqueSets.asistenciaFields,
-          uniqueSets.asistenciaModalities
+          uniqueSets.asistenciaModalities,
         );
 
         // Create jobs/works for this implementation
         await this.createJobsForImplementation(
           implementacionId,
-          uniqueSets.trabajoFields
+          uniqueSets.trabajoFields,
         );
 
         processedCount++;
@@ -461,13 +461,13 @@ export class EntityCreationPhase {
           processedCount === implementationCount
         ) {
           console.log(
-            `   → Implementation entities progress: ${processedCount}/${implementationCount}`
+            `   → Implementation entities progress: ${processedCount}/${implementationCount}`,
           );
         }
       } catch (error) {
         console.error(
           `[ERROR] Failed to create dependent entities for implementation "${implKey}":`,
-          formatError(error)
+          formatError(error),
         );
         throw error;
       }
@@ -484,12 +484,12 @@ export class EntityCreationPhase {
    * Create standard modules for an implementation
    */
   private async createModulesForImplementation(
-    implementacionId: number
+    implementacionId: number,
   ): Promise<void> {
     for (const moduleName of ["mod1", "mod2", "mod3"]) {
       const cacheKey = this.cacheManager.createImplementationCacheKey(
         moduleName,
-        implementacionId
+        implementacionId,
       );
 
       await this.entityManager.getOrCreate(
@@ -500,7 +500,7 @@ export class EntityCreationPhase {
           implementacion: implementacionId,
         },
         "modulos",
-        cacheKey
+        cacheKey,
       );
     }
   }
@@ -512,14 +512,14 @@ export class EntityCreationPhase {
     implKey: string,
     implementacionId: number,
     attendanceFields: Set<string>,
-    attendanceModalities: Map<string, string>
+    attendanceModalities: Map<string, string>,
   ): Promise<void> {
     for (const field of attendanceFields) {
       const modalityMapKey = `${implKey}|${field}`;
       const modality = attendanceModalities.get(modalityMapKey) || null;
       const cacheKey = this.cacheManager.createImplementationCacheKey(
         field,
-        implementacionId
+        implementacionId,
       );
 
       await this.entityManager.getOrCreate(
@@ -531,7 +531,7 @@ export class EntityCreationPhase {
           implementacion: implementacionId,
         },
         "asistencias",
-        cacheKey
+        cacheKey,
       );
     }
   }
@@ -541,12 +541,12 @@ export class EntityCreationPhase {
    */
   private async createJobsForImplementation(
     implementacionId: number,
-    workFields: Set<string>
+    workFields: Set<string>,
   ): Promise<void> {
     for (const field of workFields) {
       const cacheKey = this.cacheManager.createImplementationCacheKey(
         field,
-        implementacionId
+        implementacionId,
       );
 
       await this.entityManager.getOrCreate(
@@ -557,7 +557,7 @@ export class EntityCreationPhase {
           implementacion: implementacionId,
         },
         "trabajos",
-        cacheKey
+        cacheKey,
       );
     }
   }
@@ -598,7 +598,7 @@ export class BatchProcessingPhase {
     api: AxiosInstance,
     entityManager: EntityManager,
     cacheManager: CacheManager,
-    processingConfig: ProcessingConfig
+    processingConfig: ProcessingConfig,
   ) {
     this.api = api;
     this.entityManager = entityManager;
@@ -616,13 +616,13 @@ export class BatchProcessingPhase {
    * Execute batch processing phase with configurable parallel/sequential modes
    */
   async executeBatchProcessing(
-    records: ParticipantCsvRow[]
+    records: ParticipantCsvRow[],
   ): Promise<MigrationResult> {
     console.log(
-      `\n--- PHASE 3: Processing ${records.length} participants in batches of ${this.processingConfig.batchSize} ---`
+      `\n--- PHASE 3: Processing ${records.length} participants in batches of ${this.processingConfig.batchSize} ---`,
     );
     console.log(
-      `Processing mode: ${this.processingConfig.processMode.toUpperCase()}`
+      `Processing mode: ${this.processingConfig.processMode.toUpperCase()}`,
     );
     console.time("Batch Processing Phase");
 
@@ -639,11 +639,11 @@ export class BatchProcessingPhase {
         const batch = records.slice(i, i + this.processingConfig.batchSize);
         const batchNumber = Math.floor(i / this.processingConfig.batchSize) + 1;
         const totalBatches = Math.ceil(
-          records.length / this.processingConfig.batchSize
+          records.length / this.processingConfig.batchSize,
         );
 
         console.log(
-          `[BATCH ${batchNumber}/${totalBatches}] Processing ${batch.length} records...`
+          `[BATCH ${batchNumber}/${totalBatches}] Processing ${batch.length} records...`,
         );
 
         if (this.processingConfig.processMode === "sequential") {
@@ -659,17 +659,17 @@ export class BatchProcessingPhase {
         // Progress reporting
         const processed = Math.min(
           i + this.processingConfig.batchSize,
-          records.length
+          records.length,
         );
         const progressPercent = Math.round((processed / records.length) * 100);
         console.log(
-          `   → Progress: ${processed}/${records.length} (${progressPercent}%)`
+          `   → Progress: ${processed}/${records.length} (${progressPercent}%)`,
         );
 
         // Memory usage monitoring
         const memUsage = process.memoryUsage();
         console.log(
-          `   → Memory: ${Math.round(memUsage.heapUsed / 1024 / 1024)}MB`
+          `   → Memory: ${Math.round(memUsage.heapUsed / 1024 / 1024)}MB`,
         );
       }
 
@@ -697,7 +697,7 @@ export class BatchProcessingPhase {
    */
   private async processSequentialBatch(
     batch: ParticipantCsvRow[],
-    batchStartIndex: number
+    batchStartIndex: number,
   ): Promise<{ successCount: number; errorCount: number }> {
     let successCount = 0;
     let errorCount = 0;
@@ -721,10 +721,10 @@ export class BatchProcessingPhase {
    */
   private async processParallelBatch(
     batch: ParticipantCsvRow[],
-    batchStartIndex: number
+    batchStartIndex: number,
   ): Promise<{ successCount: number; errorCount: number }> {
     const results = await Promise.allSettled(
-      batch.map((record) => this.processParticipationRow(record))
+      batch.map((record) => this.processParticipationRow(record)),
     );
 
     let successCount = 0;
@@ -752,11 +752,11 @@ export class BatchProcessingPhase {
     const implementacionKey = this.cacheManager.createImplementationKey(
       row.implementacion || "",
       row.ciclo_escolar || "",
-      row.periodo_de_implementacion || ""
+      row.periodo_de_implementacion || "",
     );
     const implementacionId = this.cacheManager.getCachedId(
       "implementaciones",
-      implementacionKey
+      implementacionKey,
     );
     const cctId = row.cct
       ? this.cacheManager.getCachedId("ccts", row.cct)
@@ -789,12 +789,12 @@ export class BatchProcessingPhase {
         cct: cctId,
       },
       "participantes",
-      row.id
+      row.id,
     );
 
     if (!participantId || !implementacionId) {
       throw new Error(
-        `Missing critical IDs for participant ${row.id}. ParticipantID: ${participantId}, ImplementationID: ${implementacionId}`
+        `Missing critical IDs for participant ${row.id}. ParticipantID: ${participantId}, ImplementationID: ${implementacionId}`,
       );
     }
 
@@ -811,17 +811,17 @@ export class BatchProcessingPhase {
   private async createParticipation(
     row: ParticipantCsvRow,
     participantId: number,
-    implementacionId: number
+    implementacionId: number,
   ): Promise<void> {
     // Check if participation already exists (unless omitting GET requests)
     if (!this.processingConfig.omitGet) {
       const existingParticipation = await this.api.get(
-        `/participaciones?filters[participante][id][$eq]=${participantId}&filters[implementacion][id][$eq]=${implementacionId}&pagination[limit]=1`
+        `/participaciones?filters[participante][id][$eq]=${participantId}&filters[implementacion][id][$eq]=${implementacionId}&pagination[limit]=1`,
       );
 
       if (existingParticipation.data.data.length > 0) {
         console.log(
-          "Participation already exists for this participant and implementation. Skipping..."
+          "Participation already exists for this participant and implementation. Skipping...",
         );
         return;
       }
@@ -864,7 +864,7 @@ export class BatchProcessingPhase {
               descargo_app: toBoolean(row.descarga_app),
             },
           })
-          .catch(() => {}) // Ignore failures for non-critical records
+          .catch(() => {}), // Ignore failures for non-critical records
       );
     }
 
@@ -873,18 +873,18 @@ export class BatchProcessingPhase {
       ...this.createModuleProgressRecords(
         row,
         participationId,
-        implementacionId
-      )
+        implementacionId,
+      ),
     );
 
     // Survey completion records
     creationPromises.push(
-      ...this.createSurveyCompletionRecords(row, participationId)
+      ...this.createSurveyCompletionRecords(row, participationId),
     );
 
     // Attendance records
     creationPromises.push(
-      ...this.createAttendanceRecords(row, participationId, implementacionId)
+      ...this.createAttendanceRecords(row, participationId, implementacionId),
     );
 
     // Work completion records
@@ -892,8 +892,8 @@ export class BatchProcessingPhase {
       ...this.createWorkCompletionRecords(
         row,
         participationId,
-        implementacionId
-      )
+        implementacionId,
+      ),
     );
 
     // Wait for all related records to be created
@@ -906,7 +906,7 @@ export class BatchProcessingPhase {
   private createModuleProgressRecords(
     row: ParticipantCsvRow,
     participationId: number,
-    implementacionId: number
+    implementacionId: number,
   ): Promise<unknown>[] {
     const promises: Promise<unknown>[] = [];
 
@@ -919,7 +919,7 @@ export class BatchProcessingPhase {
       ) {
         const cacheKey = this.cacheManager.createImplementationCacheKey(
           moduleName,
-          implementacionId
+          implementacionId,
         );
         const moduleId = this.cacheManager.getCachedId("modulos", cacheKey);
 
@@ -931,7 +931,7 @@ export class BatchProcessingPhase {
                 modulo: moduleId,
                 calificacion: toNumber(moduleValue),
               },
-            })
+            }),
           );
         }
       }
@@ -945,7 +945,7 @@ export class BatchProcessingPhase {
    */
   private createSurveyCompletionRecords(
     row: ParticipantCsvRow,
-    participationId: number
+    participationId: number,
   ): Promise<unknown>[] {
     const promises: Promise<unknown>[] = [];
 
@@ -966,7 +966,7 @@ export class BatchProcessingPhase {
                 encuesta: surveyId,
                 estado: "Completada",
               },
-            })
+            }),
           );
         }
       }
@@ -981,7 +981,7 @@ export class BatchProcessingPhase {
   private createAttendanceRecords(
     row: ParticipantCsvRow,
     participationId: number,
-    implementacionId: number
+    implementacionId: number,
   ): Promise<unknown>[] {
     const promises: Promise<unknown>[] = [];
 
@@ -989,7 +989,7 @@ export class BatchProcessingPhase {
       (key) =>
         key.startsWith("asist_") ||
         key.startsWith("trip") ||
-        key.startsWith("ses")
+        key.startsWith("ses"),
     );
 
     for (const field of attendanceFields) {
@@ -1001,11 +1001,11 @@ export class BatchProcessingPhase {
       ) {
         const cacheKey = this.cacheManager.createImplementationCacheKey(
           field,
-          implementacionId
+          implementacionId,
         );
         const attendanceId = this.cacheManager.getCachedId(
           "asistencias",
-          cacheKey
+          cacheKey,
         );
 
         if (attendanceId) {
@@ -1016,7 +1016,7 @@ export class BatchProcessingPhase {
                 asistencia: attendanceId,
                 presente: true,
               },
-            })
+            }),
           );
         }
       }
@@ -1031,12 +1031,12 @@ export class BatchProcessingPhase {
   private createWorkCompletionRecords(
     row: ParticipantCsvRow,
     participationId: number,
-    implementacionId: number
+    implementacionId: number,
   ): Promise<unknown>[] {
     const promises: Promise<unknown>[] = [];
 
     const workFields = Object.keys(row).filter(
-      (key) => key.startsWith("trabajo") || key.startsWith("evidencia")
+      (key) => key.startsWith("trabajo") || key.startsWith("evidencia"),
     );
 
     for (const field of workFields) {
@@ -1048,7 +1048,7 @@ export class BatchProcessingPhase {
       ) {
         const cacheKey = this.cacheManager.createImplementationCacheKey(
           field,
-          implementacionId
+          implementacionId,
         );
         const workId = this.cacheManager.getCachedId("trabajos", cacheKey);
 
@@ -1060,7 +1060,7 @@ export class BatchProcessingPhase {
                 trabajo: workId,
                 completado: true,
               },
-            })
+            }),
           );
         }
       }
@@ -1074,7 +1074,7 @@ export class BatchProcessingPhase {
    */
   private async handleParticipantEmail(
     row: ParticipantCsvRow,
-    participantId: number
+    participantId: number,
   ): Promise<void> {
     const email = row.email?.trim();
 
@@ -1096,14 +1096,14 @@ export class BatchProcessingPhase {
 
     // Check if participant has any emails
     const existingEmails = await this.api.get(
-      `/correo-participantes?filters[participante][id][$eq]=${participantId}&pagination[limit]=1`
+      `/correo-participantes?filters[participante][id][$eq]=${participantId}&pagination[limit]=1`,
     );
 
     const shouldBePrincipal = existingEmails.data.data.length === 0;
 
     // Check if this specific email already exists
     const existingSpecificEmail = await this.api.get(
-      `/correo-participantes?filters[participante][id][$eq]=${participantId}&filters[correo][$eq]=${encodeURIComponent(email)}&pagination[limit]=1`
+      `/correo-participantes?filters[participante][id][$eq]=${participantId}&filters[correo][$eq]=${encodeURIComponent(email)}&pagination[limit]=1`,
     );
 
     if (existingSpecificEmail.data.data.length === 0) {
@@ -1116,7 +1116,7 @@ export class BatchProcessingPhase {
         },
       });
       console.log(
-        `   → Email assigned: ${email} (principal=${shouldBePrincipal})`
+        `   → Email assigned: ${email} (principal=${shouldBePrincipal})`,
       );
     } else {
       console.log(`   → Email already registered: ${email}`);
@@ -1129,7 +1129,7 @@ export class BatchProcessingPhase {
   private handleProcessingError(
     row: ParticipantCsvRow,
     error: unknown,
-    rowNumber: number
+    rowNumber: number,
   ): void {
     const participantId = row.id || "UNKNOWN_ID";
     const email = row.email || "";
@@ -1137,7 +1137,7 @@ export class BatchProcessingPhase {
 
     console.error(
       `[ERROR] Row ${rowNumber} (ID=${participantId}) failed:`,
-      errorMessage
+      errorMessage,
     );
 
     this.errorRecords.push({
@@ -1176,7 +1176,7 @@ export class ThreePhaseProcessingPipeline {
     api: AxiosInstance,
     entityManager: EntityManager,
     cacheManager: CacheManager,
-    processingConfig: ProcessingConfig
+    processingConfig: ProcessingConfig,
   ) {
     this.api = api;
     this.entityManager = entityManager;
@@ -1189,7 +1189,7 @@ export class ThreePhaseProcessingPipeline {
    */
   async executeFullPipeline(
     participationsCsv: Readable,
-    cctsCsv?: Readable
+    cctsCsv?: Readable,
   ): Promise<MigrationResult> {
     console.log("🚀 Starting Three-Phase Processing Pipeline");
     console.time("Total Migration Time");
@@ -1204,14 +1204,14 @@ export class ThreePhaseProcessingPipeline {
       } = await analysisPhase.analyzeCsv(participationsCsv);
 
       console.log(
-        `✅ Phase 1 completed: ${analysisStats.recordsProcessed} records analyzed`
+        `✅ Phase 1 completed: ${analysisStats.recordsProcessed} records analyzed`,
       );
 
       // Phase 2: Entity Creation
       const creationPhase = new EntityCreationPhase(
         this.entityManager,
         this.cacheManager,
-        this.processingConfig
+        this.processingConfig,
       );
       await creationPhase.executeCreationPhase(uniqueSets, cctsCsv);
 
@@ -1222,7 +1222,7 @@ export class ThreePhaseProcessingPipeline {
         this.api,
         this.entityManager,
         this.cacheManager,
-        this.processingConfig
+        this.processingConfig,
       );
       const processingResult = await batchPhase.executeBatchProcessing(records);
 
@@ -1234,7 +1234,7 @@ export class ThreePhaseProcessingPipeline {
       console.log(`❌ Errors: ${processingResult.errorCount}`);
       console.log(`📊 Total Records: ${processingResult.totalRecords}`);
       console.log(
-        `⏱️  Processing Time: ${Math.round(processingResult.processingTime / 1000)}s`
+        `⏱️  Processing Time: ${Math.round(processingResult.processingTime / 1000)}s`,
       );
 
       // Add error records to result if any
@@ -1250,7 +1250,7 @@ export class ThreePhaseProcessingPipeline {
     } catch (error) {
       console.error(
         "🔥 FATAL ERROR in processing pipeline:",
-        formatError(error)
+        formatError(error),
       );
       console.timeEnd("Total Migration Time");
       throw error;
@@ -1265,13 +1265,13 @@ export class ThreePhaseProcessingPipeline {
       "participante_id,email,error,row_number",
       ...errorRecords.map(
         (record) =>
-          `${record.participantId},${record.email},"${record.error.replace(/"/g, '""')}",${record.rowNumber || ""}`
+          `${record.participantId},${record.email},"${record.error.replace(/"/g, '""')}",${record.rowNumber || ""}`,
       ),
     ].join("\n");
 
     // For now, just return the content. In a full implementation, this would be saved to file or S3
     console.log(
-      `[ERROR REPORT] Generated error report with ${errorRecords.length} errors`
+      `[ERROR REPORT] Generated error report with ${errorRecords.length} errors`,
     );
     return errorCsvContent;
   }

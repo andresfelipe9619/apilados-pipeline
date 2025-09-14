@@ -3,15 +3,15 @@
  */
 
 import { S3Event } from "aws-lambda";
-import { handler, runLocal } from "./index";
+import { handler, runLocal } from "../../index";
 
 // Mock all dependencies
-jest.mock("./config");
-jest.mock("./cache");
-jest.mock("./entities");
-jest.mock("./file-input-handlers");
-jest.mock("./error-reporter");
-jest.mock("./processing-pipeline");
+jest.mock("../../config");
+jest.mock("../../cache");
+jest.mock("../../entities");
+jest.mock("../../file-input-handlers");
+jest.mock("../../error-reporter");
+jest.mock("../../processing-pipeline");
 jest.mock("axios");
 
 // Mock S3 event for testing
@@ -59,9 +59,9 @@ describe("Lambda Handler", () => {
   describe("handler", () => {
     it("should handle S3 events successfully", async () => {
       // Mock successful configuration and processing
-      const { loadEnvironmentConfig, validateConfiguration } = require("./config");
-      const { createFileInputHandler } = require("./file-input-handlers");
-      const { createErrorReporter } = require("./error-reporter");
+      const { loadEnvironmentConfig, validateConfiguration } = require("../../config");
+      const { createFileInputHandler } = require("../../file-input-handlers");
+      const { createErrorReporter } = require("../../error-reporter");
       
       loadEnvironmentConfig.mockReturnValue({
         strapiBaseUrl: "https://api.example.com",
@@ -89,7 +89,7 @@ describe("Lambda Handler", () => {
       createErrorReporter.mockReturnValue(mockErrorReporter);
 
       // Mock processing pipeline
-      const { CsvAnalysisPhase, EntityCreationPhase, BatchProcessingPhase } = require("./processing-pipeline");
+      const { CsvAnalysisPhase, EntityCreationPhase, BatchProcessingPhase } = require("../../processing-pipeline");
       
       const mockAnalysisPhase = {
         analyzeCsv: jest.fn().mockResolvedValue({
@@ -127,7 +127,7 @@ describe("Lambda Handler", () => {
     });
 
     it("should handle configuration validation errors", async () => {
-      const { loadEnvironmentConfig, validateConfiguration } = require("./config");
+      const { loadEnvironmentConfig, validateConfiguration } = require("../../config");
       
       loadEnvironmentConfig.mockReturnValue({
         strapiBaseUrl: "",
@@ -150,8 +150,8 @@ describe("Lambda Handler", () => {
     });
 
     it("should handle processing errors gracefully", async () => {
-      const { loadEnvironmentConfig, validateConfiguration } = require("./config");
-      const { createFileInputHandler } = require("./file-input-handlers");
+      const { loadEnvironmentConfig, validateConfiguration } = require("../../config");
+      const { createFileInputHandler } = require("../../file-input-handlers");
       
       loadEnvironmentConfig.mockReturnValue({
         strapiBaseUrl: "https://api.example.com",
@@ -177,9 +177,9 @@ describe("Lambda Handler", () => {
 
   describe("runLocal", () => {
     it("should run local migration successfully", async () => {
-      const { loadEnvironmentConfig, validateConfiguration } = require("./config");
-      const { createFileInputHandler } = require("./file-input-handlers");
-      const { createErrorReporter } = require("./error-reporter");
+      const { loadEnvironmentConfig, validateConfiguration } = require("../../config");
+      const { createFileInputHandler } = require("../../file-input-handlers");
+      const { createErrorReporter } = require("../../error-reporter");
       
       loadEnvironmentConfig.mockReturnValue({
         strapiBaseUrl: "https://api.example.com",
@@ -207,7 +207,7 @@ describe("Lambda Handler", () => {
       createErrorReporter.mockReturnValue(mockErrorReporter);
 
       // Mock processing pipeline
-      const { CsvAnalysisPhase, EntityCreationPhase, BatchProcessingPhase } = require("./processing-pipeline");
+      const { CsvAnalysisPhase, EntityCreationPhase, BatchProcessingPhase } = require("../../processing-pipeline");
       
       const mockAnalysisPhase = {
         analyzeCsv: jest.fn().mockResolvedValue({
@@ -243,7 +243,7 @@ describe("Lambda Handler", () => {
     });
 
     it("should handle local migration errors", async () => {
-      const { loadEnvironmentConfig, validateConfiguration } = require("./config");
+      const { loadEnvironmentConfig, validateConfiguration } = require("../../config");
       
       loadEnvironmentConfig.mockReturnValue({
         strapiBaseUrl: "",

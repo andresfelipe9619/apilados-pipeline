@@ -2,7 +2,7 @@
  * Unit tests for cache management system
  */
 
-import { CacheManager } from "./cache";
+import { CacheManager } from "../../cache";
 import { AxiosInstance } from "axios";
 
 // Mock axios instance

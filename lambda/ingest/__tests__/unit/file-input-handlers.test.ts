@@ -9,8 +9,8 @@ import {
   FileInputHandlerFactory,
   createFileInputHandler,
   validateFileInputConfig
-} from "./file-input-handlers";
-import { LocalConfig } from "./types";
+} from "../../file-input-handlers";
+import { LocalConfig } from "../../types";
 
 // Mock S3 event for testing
 const mockS3Event: S3Event = {

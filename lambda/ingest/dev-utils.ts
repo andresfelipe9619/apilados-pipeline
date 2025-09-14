@@ -3,23 +3,21 @@
  * Provides helper functions, sample data generation, and environment validation
  */
 
-import { writeFile, readFile, mkdir } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import {
   EnvironmentConfig,
-  ProcessingConfig,
-  LocalConfig,
-  ValidationResult,
-  TestReport,
   ParticipantCsvRow,
+  TestReport,
+  ValidationResult,
 } from "./types";
 import {
-  loadEnvironmentConfig,
   createProcessingConfig,
-  validateConfiguration,
-  getRequiredEnvironmentVariables,
   getOptionalEnvironmentVariables,
+  getRequiredEnvironmentVariables,
+  loadEnvironmentConfig,
+  validateConfiguration,
 } from "./config";
 import { createLocalTestRunner } from "./local-test-runner";
 
@@ -59,38 +57,38 @@ export class DevUtils {
     const envFilePath = join(process.cwd(), ".env");
     if (!existsSync(envFilePath)) {
       recommendations.push(
-        "Create a .env file in the project root for local development"
+        "Create a .env file in the project root for local development",
       );
       recommendations.push(
-        "Copy .env.example to .env and fill in the required values"
+        "Copy .env.example to .env and fill in the required values",
       );
     }
 
     // Check required environment variables
     const requiredVars = getRequiredEnvironmentVariables();
     const missingRequired = requiredVars.filter(
-      (varName) => !process.env[varName]
+      (varName) => !process.env[varName],
     );
 
     if (missingRequired.length > 0) {
       recommendations.push(
-        `Set required environment variables: ${missingRequired.join(", ")}`
+        `Set required environment variables: ${missingRequired.join(", ")}`,
       );
     }
 
     // Check optional environment variables and suggest defaults
     const optionalVars = getOptionalEnvironmentVariables();
     const missingOptional = Object.keys(optionalVars).filter(
-      (varName) => !process.env[varName]
+      (varName) => !process.env[varName],
     );
 
     if (missingOptional.length > 0) {
       recommendations.push(
-        "Consider setting optional environment variables for better control:"
+        "Consider setting optional environment variables for better control:",
       );
       missingOptional.forEach((varName) => {
         recommendations.push(
-          `  - ${varName}=${optionalVars[varName]} (default)`
+          `  - ${varName}=${optionalVars[varName]} (default)`,
         );
       });
     }
@@ -99,7 +97,7 @@ export class DevUtils {
     const testDataDir = join(process.cwd(), "test-data");
     if (!existsSync(testDataDir)) {
       recommendations.push(
-        "Create a test-data directory with sample CSV files for testing"
+        "Create a test-data directory with sample CSV files for testing",
       );
     }
 
@@ -107,7 +105,7 @@ export class DevUtils {
     const sampleCsvPath = join(testDataDir, "sample.csv");
     if (!existsSync(sampleCsvPath)) {
       recommendations.push(
-        "Create sample.csv in test-data directory for testing"
+        "Create sample.csv in test-data directory for testing",
       );
     }
 
@@ -125,7 +123,7 @@ export class DevUtils {
    */
   async generateSampleCsv(
     outputPath: string,
-    recordCount: number = 10
+    recordCount: number = 10,
   ): Promise<string> {
     console.log(`📝 Generating sample CSV with ${recordCount} records`);
 
@@ -204,7 +202,7 @@ export class DevUtils {
    */
   async generateSampleCctsCsv(
     outputPath: string,
-    cctCount: number = 5
+    cctCount: number = 5,
   ): Promise<string> {
     console.log(`📝 Generating sample CCTs CSV with ${cctCount} records`);
 
@@ -229,7 +227,7 @@ export class DevUtils {
       const tipo = tipos[i % tipos.length];
 
       const values = [cct, nombre, municipio, entidad, tipo].map((v) =>
-        this.escapeCsvValue(v)
+        this.escapeCsvValue(v),
       );
       csvLines.push(values.join(","));
     }
@@ -272,16 +270,16 @@ export class DevUtils {
     // Generate sample CSV files
     const sampleCsv = await this.generateSampleCsv(
       join(fullTestDir, "sample-participations.csv"),
-      20
+      20,
     );
     const cctsCsv = await this.generateSampleCctsCsv(
       join(fullTestDir, "sample-ccts.csv"),
-      10
+      10,
     );
 
     // Create .env file template
     const envFile = await this.createEnvTemplate(
-      join(fullTestDir, ".env.test")
+      join(fullTestDir, ".env.test"),
     );
 
     // Create README with instructions
@@ -315,7 +313,7 @@ export class DevUtils {
       }
       testCsvPath = await this.generateSampleCsv(
         join(tempDir, "quick-test.csv"),
-        5
+        5,
       );
     }
 
@@ -324,7 +322,7 @@ export class DevUtils {
     if (!envValidation.isValid) {
       console.error("❌ Environment validation failed - cannot run test");
       throw new Error(
-        `Environment validation failed: ${envValidation.errors.join(", ")}`
+        `Environment validation failed: ${envValidation.errors.join(", ")}`,
       );
     }
 
@@ -356,10 +354,10 @@ export class DevUtils {
     console.log("\n📋 Environment Configuration Summary");
     console.log("=".repeat(50));
     console.log(
-      `Strapi Base URL: ${this.envConfig.strapiBaseUrl || "NOT SET"}`
+      `Strapi Base URL: ${this.envConfig.strapiBaseUrl || "NOT SET"}`,
     );
     console.log(
-      `Strapi Token: ${this.envConfig.strapiToken ? "SET" : "NOT SET"}`
+      `Strapi Token: ${this.envConfig.strapiToken ? "SET" : "NOT SET"}`,
     );
     console.log(`Process Mode: ${this.envConfig.processMode}`);
     console.log(`Omit GET: ${this.envConfig.omitGet}`);
@@ -603,7 +601,7 @@ export function validateEnv(): ValidationResult & {
  */
 export async function generateTestData(
   outputDir: string = "test-data",
-  recordCount: number = 20
+  recordCount: number = 20,
 ): Promise<{
   participationsCsv: string;
   cctsCsv: string;
@@ -612,12 +610,12 @@ export async function generateTestData(
 
   const participationsCsv = await utils.generateSampleCsv(
     join(outputDir, "sample-participations.csv"),
-    recordCount
+    recordCount,
   );
 
   const cctsCsv = await utils.generateSampleCctsCsv(
     join(outputDir, "sample-ccts.csv"),
-    Math.ceil(recordCount / 4)
+    Math.ceil(recordCount / 4),
   );
 
   return { participationsCsv, cctsCsv };
@@ -629,7 +627,7 @@ export async function generateTestData(
  * @returns Object with paths to created files
  */
 export async function setupTestEnvironment(
-  testDir: string = "test-environment"
+  testDir: string = "test-environment",
 ): Promise<{
   testDir: string;
   sampleCsv: string;

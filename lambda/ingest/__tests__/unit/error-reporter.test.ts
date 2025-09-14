@@ -3,14 +3,12 @@
  */
 
 import { writeFile } from "node:fs/promises";
-import { MigrationErrorReporter, createErrorReporter } from "./error-reporter";
+import { MigrationErrorReporter, createErrorReporter } from "../../error-reporter";
 
 // Mock fs/promises
 jest.mock("node:fs/promises", () => ({
   writeFile: jest.fn()
 }));
-
-
 
 describe("MigrationErrorReporter", () => {
   let errorReporter: MigrationErrorReporter;
@@ -205,6 +203,7 @@ describe("MigrationErrorReporter", () => {
       expect(dataLineIndex).toBeGreaterThan(0);
       expect(lines[dataLineIndex]).toContain(",Test error,");
     });
+  });
 
   describe("saveErrorReport", () => {
     const mockWriteFile = writeFile as jest.MockedFunction<typeof writeFile>;

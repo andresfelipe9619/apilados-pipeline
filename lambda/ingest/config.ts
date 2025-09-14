@@ -7,12 +7,12 @@ import { S3Event } from "aws-lambda";
 import { existsSync } from "fs";
 import * as dotenv from "dotenv";
 import {
+  ConfigValidator,
+  EnvironmentConfig,
   ExecutionMode,
   LocalConfig,
   ProcessingConfig,
-  EnvironmentConfig,
   ValidationResult,
-  ConfigValidator,
 } from "./types";
 
 /**
@@ -20,7 +20,7 @@ import {
  */
 export function detectExecutionMode(
   event?: S3Event,
-  localConfig?: LocalConfig
+  localConfig?: LocalConfig,
 ): ExecutionMode {
   // If we have an S3 event, we're definitely in AWS mode
   if (event && event.Records && event.Records.length > 0) {
@@ -69,7 +69,8 @@ export function loadEnvironmentConfig(): EnvironmentConfig {
         ? "sequential"
         : "parallel",
     // Support both OMIT_GET (new) and OMMIT_GET (migrator.js compatibility - note the typo)
-    omitGet: process.env.OMIT_GET === "true" || process.env.OMMIT_GET === "true",
+    omitGet:
+      process.env.OMIT_GET === "true" || process.env.OMMIT_GET === "true",
     batchSize: Number(process.env.BATCH_SIZE) || 100,
     chunkSize: Number(process.env.CHUNK_SIZE) || 150,
   };
@@ -81,7 +82,7 @@ export function loadEnvironmentConfig(): EnvironmentConfig {
  * Creates processing configuration from environment and overrides
  */
 export function createProcessingConfig(
-  overrides?: Partial<ProcessingConfig>
+  overrides?: Partial<ProcessingConfig>,
 ): ProcessingConfig {
   const envConfig = loadEnvironmentConfig();
 
@@ -99,7 +100,7 @@ export function createProcessingConfig(
  */
 export class DefaultConfigValidator implements ConfigValidator {
   validateEnvironmentConfig(
-    config: Partial<EnvironmentConfig>
+    config: Partial<EnvironmentConfig>,
   ): ValidationResult {
     const errors: string[] = [];
     const warnings: string[] = [];
@@ -125,13 +126,13 @@ export class DefaultConfigValidator implements ConfigValidator {
 
     if (config.batchSize && (config.batchSize < 1 || config.batchSize > 1000)) {
       warnings.push(
-        "BATCH_SIZE should be between 1 and 1000 for optimal performance"
+        "BATCH_SIZE should be between 1 and 1000 for optimal performance",
       );
     }
 
     if (config.chunkSize && (config.chunkSize < 1 || config.chunkSize > 1000)) {
       warnings.push(
-        "CHUNK_SIZE should be between 1 and 1000 for optimal performance"
+        "CHUNK_SIZE should be between 1 and 1000 for optimal performance",
       );
     }
 
@@ -150,20 +151,20 @@ export class DefaultConfigValidator implements ConfigValidator {
       errors.push("participationsCsvPath is required for local execution");
     } else if (!existsSync(config.participationsCsvPath)) {
       errors.push(
-        `Participations CSV file not found: ${config.participationsCsvPath}`
+        `Participations CSV file not found: ${config.participationsCsvPath}`,
       );
     }
 
     if (config.cctsCsvPath && !existsSync(config.cctsCsvPath)) {
       warnings.push(
-        `CCTs CSV file not found: ${config.cctsCsvPath} (will continue without CCTs)`
+        `CCTs CSV file not found: ${config.cctsCsvPath} (will continue without CCTs)`,
       );
     }
 
     if (config.outputPath) {
       const outputDir = config.outputPath.substring(
         0,
-        config.outputPath.lastIndexOf("/")
+        config.outputPath.lastIndexOf("/"),
       );
       if (outputDir && !existsSync(outputDir)) {
         errors.push(`Output directory does not exist: ${outputDir}`);
@@ -178,7 +179,7 @@ export class DefaultConfigValidator implements ConfigValidator {
   }
 
   validateProcessingConfig(
-    config: Partial<ProcessingConfig>
+    config: Partial<ProcessingConfig>,
   ): ValidationResult {
     const errors: string[] = [];
     const warnings: string[] = [];
@@ -226,7 +227,7 @@ export function validateConfiguration(
   executionMode: ExecutionMode,
   envConfig?: EnvironmentConfig,
   localConfig?: LocalConfig,
-  processingConfig?: ProcessingConfig
+  processingConfig?: ProcessingConfig,
 ): ValidationResult {
   const validator = new DefaultConfigValidator();
   const allErrors: string[] = [];
@@ -265,7 +266,7 @@ export function validateConfiguration(
  */
 export function logValidationResults(
   result: ValidationResult,
-  context: string = ""
+  context: string = "",
 ): void {
   const prefix = context ? `[${context}] ` : "";
 
@@ -336,7 +337,7 @@ export function createLocalConfigFromEnv(): LocalConfig | null {
   }
 
   const participationsCsvPath = process.env.PARTICIPATIONS_CSV_FILE;
-  
+
   if (!participationsCsvPath) {
     return null; // No local config available from environment
   }

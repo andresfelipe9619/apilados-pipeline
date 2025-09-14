@@ -16,7 +16,7 @@ import {
   formatError,
   delay,
   calculateBackoffDelay,
-} from "./utils";
+} from "../../utils";
 
 describe("toBoolean", () => {
   test("converts string 'true' to true", () => {

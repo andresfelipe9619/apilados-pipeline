@@ -2,11 +2,11 @@
  * Unit tests for entity management system
  */
 
-import { EntityManager } from "./entities";
-import { CacheManager } from "./cache";
+import { EntityManager } from "../../entities";
+import { CacheManager } from "../../cache";
 import { AxiosInstance } from "axios";
 import { Readable } from "node:stream";
-import { ProcessingConfig, UniqueSets } from "./types";
+import { ProcessingConfig, UniqueSets } from "../../types";
 
 // Mock dependencies
 const mockApi = {
