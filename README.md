@@ -13,6 +13,8 @@ The system consists of:
 ## Key Features
 
 - **Dual Execution Modes**: Supports both local testing and AWS S3 event processing
+- **Database Dump Integration**: Create PostgreSQL database backups with optional migration execution
+- **Enhanced CCTs Handling**: Automatic detection of local CCTs data with S3 fallback for production
 - **Three-Phase Processing**: Analysis, pre-loading, and batch processing for optimal performance
 - **Comprehensive Error Handling**: Detailed error logging and CSV report generation
 - **Flexible Configuration**: Environment-based configuration for different deployment scenarios
@@ -37,6 +39,37 @@ The system consists of:
 3. **Run Local Test**
    ```bash
    npm run cli quick
+   ```
+
+### Database Dump Setup (Optional)
+
+For database backup functionality, additional setup is required:
+
+1. **Install PostgreSQL Client Tools**
+   ```bash
+   # macOS
+   brew install postgresql
+   
+   # Ubuntu/Debian
+   sudo apt-get install postgresql-client
+   
+   # Verify installation
+   which pg_dump pg_isready
+   ```
+
+2. **Configure Database Connection**
+   ```bash
+   # Add to your .env file
+   DATABASE_HOST=localhost
+   DATABASE_PORT=5432
+   DATABASE_NAME=strapi_db
+   DATABASE_USERNAME=strapi
+   DATABASE_PASSWORD=your_password
+   ```
+
+3. **Test Database Connection**
+   ```bash
+   npm run cli validate
    ```
 
 ### AWS Deployment
@@ -70,6 +103,8 @@ The system consists of:
 - **[Local Testing Guide](lambda/ingest/LOCAL_TESTING.md)** - Complete guide for local development and testing
 - **[Environment Variables](lambda/ingest/ENVIRONMENT_VARIABLES.md)** - Configuration reference
 - **[Build Configuration](lambda/ingest/BUILD_CONFIGURATION.md)** - Build and deployment setup
+- **[Usage Examples](USAGE_EXAMPLES.md)** - Comprehensive usage examples and scenarios
+- **[Troubleshooting Guide](TROUBLESHOOTING.md)** - Common issues and solutions
 
 ## Usage Examples
 
@@ -85,6 +120,12 @@ npm run cli quick
 
 # Test with your CSV file
 npm run cli test ./data/participations.csv --mode parallel
+
+# Create database dump and run migration
+npm run cli dump --csv-file ./data/participations.csv
+
+# Create database dump only
+npm run cli dump --dump-only --compress
 ```
 
 ### Programmatic Usage
@@ -100,6 +141,23 @@ const result = await runLocalTest('./data/participations.csv', {
 console.log(`Processed ${result.successCount} records successfully`);
 ```
 
+### Database Dump Operations
+```bash
+cd lambda/ingest
+
+# Interactive dump (prompts for options)
+npm run cli dump
+
+# Create compressed backup only
+npm run cli dump --dump-only --compress --output ./backups
+
+# Dump database and run migration
+npm run cli dump --csv-file ./data/participations.csv --mode parallel
+
+# Dump with custom CCTs file
+npm run cli dump --csv-file ./data/participations.csv --ccts ./data/ccts.csv
+```
+
 ### AWS S3 Processing
 Once deployed, simply upload CSV files to the configured S3 bucket. The lambda will:
 1. Automatically detect and download the CSV file
@@ -107,11 +165,35 @@ Once deployed, simply upload CSV files to the configured S3 bucket. The lambda w
 3. Generate error reports for any failed records
 4. Upload error reports back to S3
 
+## Enhanced Features
+
+### CCTs Data Auto-Detection
+
+The system automatically detects and uses CCTs data from multiple sources:
+
+- **Local Development**: Automatically uses `ccts_export.csv` from project root
+- **Production**: Falls back to S3-based CCTs data
+- **Manual Override**: Specify custom CCTs file with `--ccts` option
+- **Optional**: Migration continues without CCTs data if not available
+
+```bash
+# Auto-detection (uses ./ccts_export.csv if available)
+npm run cli test ./data/participations.csv
+
+# Manual CCTs file
+npm run cli test ./data/participations.csv --ccts ./data/custom-ccts.csv
+
+# Disable CCTs
+npm run cli test ./data/participations.csv --no-auto-ccts
+```
+
 ## Migration from migrator.js
 
 The original `migrator.js` functionality has been fully integrated into the lambda function. Key improvements:
 
 - **Unified Architecture**: Single lambda function handles both local and AWS processing
+- **Database Dump Integration**: Create backups before migrations with PostgreSQL support
+- **Enhanced CCTs Handling**: Automatic local/S3 CCTs detection and processing
 - **Enhanced Error Handling**: Comprehensive error reporting with CSV generation
 - **Better Testing**: Complete local testing framework with CLI tools
 - **Type Safety**: Full TypeScript implementation with proper type definitions
@@ -140,6 +222,11 @@ npm run test:coverage # Run tests with coverage
 npm run cli validate  # Validate environment
 npm run cli quick     # Quick test with sample data
 npm run cli test <csv-file> # Test with specific CSV file
+
+# Database Operations
+npm run cli dump      # Interactive database dump
+npm run cli dump --dump-only # Create backup only
+npm run cli dump --csv-file <file> # Dump and migrate
 ```
 
 ## Environment Configuration
@@ -148,10 +235,20 @@ The system supports flexible environment configuration for different scenarios:
 
 ### Local Development (.env)
 ```bash
+# Strapi Configuration
 STRAPI_BASE_URL=http://localhost:1337/api
 STRAPI_TOKEN=your-development-token
+
+# Processing Configuration
 PROCESS_MODE=parallel
 BATCH_SIZE=50
+
+# Database Configuration (for dump functionality)
+DATABASE_HOST=localhost
+DATABASE_PORT=5432
+DATABASE_NAME=strapi_db
+DATABASE_USERNAME=strapi
+DATABASE_PASSWORD=your_password
 ```
 
 ### AWS Production

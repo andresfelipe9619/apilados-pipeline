@@ -5,12 +5,14 @@ This document provides comprehensive examples for using the Apilados Pipeline da
 ## Table of Contents
 
 1. [Local Development Examples](#local-development-examples)
-2. [AWS Deployment Examples](#aws-deployment-examples)
-3. [CLI Usage Examples](#cli-usage-examples)
-4. [Programmatic Usage Examples](#programmatic-usage-examples)
-5. [Configuration Examples](#configuration-examples)
-6. [Error Handling Examples](#error-handling-examples)
-7. [Performance Optimization Examples](#performance-optimization-examples)
+2. [Database Dump Examples](#database-dump-examples)
+3. [AWS Deployment Examples](#aws-deployment-examples)
+4. [CLI Usage Examples](#cli-usage-examples)
+5. [Programmatic Usage Examples](#programmatic-usage-examples)
+6. [Configuration Examples](#configuration-examples)
+7. [Error Handling Examples](#error-handling-examples)
+8. [Performance Optimization Examples](#performance-optimization-examples)
+9. [Troubleshooting Guide](#troubleshooting-guide)
 
 ## Local Development Examples
 
@@ -28,11 +30,21 @@ cp .env.example .env
 
 # 4. Edit .env file with your configuration
 cat > .env << EOF
+# Strapi Configuration
 STRAPI_BASE_URL=http://localhost:1337/api
 STRAPI_TOKEN=your-strapi-token-here
+
+# Processing Configuration
 PROCESS_MODE=parallel
 BATCH_SIZE=100
 OMIT_GET=false
+
+# Database Configuration (for dump functionality)
+DATABASE_HOST=localhost
+DATABASE_PORT=5432
+DATABASE_NAME=strapi_db
+DATABASE_USERNAME=strapi
+DATABASE_PASSWORD=your_password
 EOF
 
 # 5. Validate environment
@@ -82,6 +94,145 @@ npm test
 
 # 5. Test with larger dataset
 npm run cli test test-data/large-sample.csv --mode parallel
+```
+
+## Database Dump Examples
+
+### Basic Database Dump Operations
+
+```bash
+cd lambda/ingest
+
+# Interactive dump (prompts for options)
+npm run cli dump
+
+# Create database dump only
+npm run cli dump --dump-only
+
+# Create compressed database dump
+npm run cli dump --dump-only --compress --output ./backups
+
+# Dump with custom output directory
+npm run cli dump --dump-only --output /path/to/backups
+
+# Dump without timestamp in filename
+npm run cli dump --dump-only --no-timestamp
+```
+
+### Dump and Migration Workflows
+
+```bash
+# Dump database and run migration with CSV file
+npm run cli dump --csv-file ./data/participations.csv
+
+# Dump and migrate with custom settings
+npm run cli dump \
+  --csv-file ./data/participations.csv \
+  --mode parallel \
+  --batch-size 100 \
+  --compress
+
+# Dump and migrate with custom CCTs file
+npm run cli dump \
+  --csv-file ./data/participations.csv \
+  --ccts ./data/custom-ccts.csv \
+  --mode sequential
+
+# Dump and migrate with performance optimization
+npm run cli dump \
+  --csv-file ./data/large-dataset.csv \
+  --mode parallel \
+  --batch-size 200 \
+  --omit-get \
+  --compress
+```
+
+### Database Configuration Examples
+
+```bash
+# Validate database configuration
+npm run cli validate
+
+# Test database connection before dump
+npm run cli dump --dump-only  # Will test connection first
+
+# Environment-specific database dumps
+DATABASE_HOST=production.db.com npm run cli dump --dump-only
+DATABASE_HOST=staging.db.com npm run cli dump --dump-only
+```
+
+### Automated Backup Workflows
+
+```bash
+# Daily backup script
+#!/bin/bash
+cd /path/to/apilados-pipeline/lambda/ingest
+
+# Create timestamped backup
+npm run cli dump --dump-only --compress --output ./daily-backups
+
+# Cleanup old backups (keep last 7 days)
+find ./daily-backups -name "*.sql*" -mtime +7 -delete
+
+# Log backup completion
+echo "$(date): Database backup completed" >> backup.log
+```
+
+```bash
+# Pre-migration backup workflow
+#!/bin/bash
+cd /path/to/apilados-pipeline/lambda/ingest
+
+echo "Creating pre-migration backup..."
+npm run cli dump --dump-only --compress --output ./pre-migration-backups
+
+if [ $? -eq 0 ]; then
+    echo "Backup successful, proceeding with migration..."
+    npm run cli test ./data/new-data.csv --mode parallel
+else
+    echo "Backup failed, aborting migration"
+    exit 1
+fi
+```
+
+### CCTs Data Handling Examples
+
+```bash
+# Auto-detect ccts_export.csv from project root
+npm run cli dump --csv-file ./data/participations.csv
+# Will automatically use ./ccts_export.csv if available
+
+# Use specific CCTs file
+npm run cli dump \
+  --csv-file ./data/participations.csv \
+  --ccts ./data/custom-ccts.csv
+
+# Disable automatic CCTs detection for testing
+npm run cli test ./data/participations.csv --no-auto-ccts
+
+# Test with different CCTs sources
+npm run cli test ./data/participations.csv --ccts ./data/test-ccts.csv
+npm run cli test ./data/participations.csv --ccts ./data/production-ccts.csv
+```
+
+### Database Dump Troubleshooting
+
+```bash
+# Check PostgreSQL tools availability
+which pg_dump pg_isready
+# Should return paths to both tools
+
+# Test database connection manually
+pg_isready -h localhost -p 5432 -U strapi -d strapi_db
+
+# Create test dump manually
+pg_dump -h localhost -p 5432 -U strapi -d strapi_db -f test-dump.sql
+
+# Validate dump file
+head -20 test-dump.sql  # Should show PostgreSQL dump header
+
+# Check dump file size
+ls -lh *.sql*  # Should show reasonable file size
 ```
 
 ## AWS Deployment Examples
@@ -182,6 +333,23 @@ npm run cli test data.csv --batch-size 10     # Small batches
 
 # Performance testing
 time npm run cli test large-dataset.csv --mode parallel --batch-size 500
+```
+
+### Database Operations
+
+```bash
+# Database dump operations
+npm run cli dump                    # Interactive mode
+npm run cli dump --dump-only        # Backup only
+npm run cli dump --compress         # Compressed backup
+npm run cli dump --csv-file data.csv # Dump and migrate
+
+# Database configuration validation
+npm run cli validate                # Includes database config check
+
+# Environment-specific operations
+NODE_ENV=production npm run cli dump --dump-only
+NODE_ENV=staging npm run cli dump --dump-only
 ```
 
 ## Programmatic Usage Examples
@@ -338,6 +506,13 @@ PROCESS_MODE=sequential
 BATCH_SIZE=10
 OMIT_GET=false
 DEBUG=true
+
+# Database configuration for dumps
+DATABASE_HOST=localhost
+DATABASE_PORT=5432
+DATABASE_NAME=strapi_dev
+DATABASE_USERNAME=strapi
+DATABASE_PASSWORD=dev_password
 ```
 
 #### Testing Environment
@@ -348,6 +523,13 @@ STRAPI_TOKEN=staging-token-here
 PROCESS_MODE=parallel
 BATCH_SIZE=50
 OMIT_GET=true
+
+# Database configuration for staging
+DATABASE_HOST=staging-db.example.com
+DATABASE_PORT=5432
+DATABASE_NAME=strapi_staging
+DATABASE_USERNAME=strapi_staging
+DATABASE_PASSWORD=staging_password
 ```
 
 #### Production Environment (CDK)
@@ -362,6 +544,17 @@ const productionParams: Params = {
   chunkSize: 300,
   bucketName: 'production-migration-bucket'
 };
+```
+
+#### Production Database Environment
+```bash
+# Production database configuration (use secure methods in production)
+DATABASE_HOST=prod-db.example.com
+DATABASE_PORT=5432
+DATABASE_NAME=strapi_production
+DATABASE_USERNAME=strapi_prod
+DATABASE_PASSWORD=secure_production_password
+DATABASE_SSL=true
 ```
 
 ### Processing Configuration Examples
@@ -647,5 +840,244 @@ docker run -e STRAPI_BASE_URL=http://host.docker.internal:1337/api \
            -v $(pwd)/data:/app/data \
            apilados-migration npm run cli test /app/data/participations.csv
 ```
+
+## Troubleshooting Guide
+
+### Database Dump Issues
+
+#### PostgreSQL Tools Not Found
+```bash
+# Error: PostgreSQL client tools not found
+# Solution: Install PostgreSQL client tools
+
+# macOS
+brew install postgresql
+
+# Ubuntu/Debian
+sudo apt-get install postgresql-client
+
+# CentOS/RHEL
+sudo yum install postgresql
+
+# Verify installation
+which pg_dump pg_isready
+```
+
+#### Database Connection Issues
+```bash
+# Error: Database connection failed
+# Check connection parameters
+
+# Test connection manually
+pg_isready -h $DATABASE_HOST -p $DATABASE_PORT -U $DATABASE_USERNAME -d $DATABASE_NAME
+
+# Common issues and solutions:
+# 1. Wrong host/port: Verify DATABASE_HOST and DATABASE_PORT
+# 2. Authentication failed: Check DATABASE_USERNAME and DATABASE_PASSWORD
+# 3. Database not found: Verify DATABASE_NAME exists
+# 4. SSL issues: Set DATABASE_SSL=true for remote connections
+```
+
+#### Dump File Issues
+```bash
+# Error: Permission denied writing dump file
+# Solution: Check output directory permissions
+mkdir -p ./dumps
+chmod 755 ./dumps
+
+# Error: Disk space insufficient
+# Solution: Check available disk space
+df -h .
+# Clean up old dumps or choose different output directory
+
+# Error: Dump file already exists
+# Solution: Use timestamp option or different filename
+npm run cli dump --dump-only --timestamp
+```
+
+### Migration Issues
+
+#### Environment Configuration
+```bash
+# Error: Environment validation failed
+# Solution: Check required environment variables
+
+# Validate configuration
+npm run cli validate
+
+# Common missing variables:
+export STRAPI_BASE_URL=http://localhost:1337/api
+export STRAPI_TOKEN=your-token-here
+
+# For database dumps, also need:
+export DATABASE_HOST=localhost
+export DATABASE_PORT=5432
+export DATABASE_NAME=strapi_db
+export DATABASE_USERNAME=strapi
+export DATABASE_PASSWORD=your_password
+```
+
+#### Strapi Connection Issues
+```bash
+# Error: Cannot connect to Strapi
+# Solutions:
+
+# 1. Check if Strapi is running
+curl $STRAPI_BASE_URL/users/me -H "Authorization: Bearer $STRAPI_TOKEN"
+
+# 2. Verify base URL format (should end with /api)
+export STRAPI_BASE_URL=http://localhost:1337/api
+
+# 3. Check token validity
+# Generate new token in Strapi admin panel
+
+# 4. Check network connectivity
+ping localhost  # or your Strapi host
+```
+
+#### CSV File Issues
+```bash
+# Error: CSV file not found
+# Solution: Check file path and permissions
+ls -la ./data/participations.csv
+
+# Error: Invalid CSV format
+# Solution: Validate CSV structure
+head -5 ./data/participations.csv
+# Should show proper headers and data format
+
+# Error: Large file processing issues
+# Solution: Use smaller batch sizes
+npm run cli test large-file.csv --batch-size 25 --mode sequential
+```
+
+#### CCTs Data Issues
+```bash
+# Error: CCTs file not found
+# Solutions:
+
+# 1. Place ccts_export.csv in project root for auto-detection
+cp ./data/ccts.csv ./ccts_export.csv
+
+# 2. Specify CCTs file explicitly
+npm run cli test data.csv --ccts ./data/ccts.csv
+
+# 3. Disable CCTs if not needed
+npm run cli test data.csv --no-auto-ccts
+
+# Error: Invalid CCTs format
+# Solution: Validate CCTs CSV structure
+head -5 ./ccts_export.csv
+# Should have proper CCT data format
+```
+
+### Performance Issues
+
+#### Slow Processing
+```bash
+# Issue: Very slow migration processing
+# Solutions:
+
+# 1. Use parallel processing
+npm run cli test data.csv --mode parallel
+
+# 2. Increase batch size
+npm run cli test data.csv --batch-size 200
+
+# 3. Skip GET requests for performance
+npm run cli test data.csv --omit-get
+
+# 4. Optimize configuration
+npm run cli test data.csv --mode parallel --batch-size 200 --omit-get
+```
+
+#### Memory Issues
+```bash
+# Issue: Out of memory errors
+# Solutions:
+
+# 1. Use sequential processing
+npm run cli test data.csv --mode sequential
+
+# 2. Reduce batch size
+npm run cli test data.csv --batch-size 25
+
+# 3. Process in smaller chunks
+split -l 1000 large-file.csv chunk_
+for chunk in chunk_*; do
+  npm run cli test $chunk --mode sequential --batch-size 50
+done
+```
+
+#### Rate Limiting
+```bash
+# Issue: API rate limiting errors
+# Solutions:
+
+# 1. Use sequential processing
+npm run cli test data.csv --mode sequential
+
+# 2. Reduce batch size
+npm run cli test data.csv --batch-size 10
+
+# 3. Add delays between requests (modify code if needed)
+# 4. Check Strapi rate limiting configuration
+```
+
+### Common Error Messages and Solutions
+
+#### "Environment validation failed"
+- **Cause**: Missing required environment variables
+- **Solution**: Run `npm run cli validate` and add missing variables to `.env`
+
+#### "Database connection failed"
+- **Cause**: Incorrect database configuration or database not accessible
+- **Solution**: Verify database is running and connection parameters are correct
+
+#### "PostgreSQL client tools not found"
+- **Cause**: pg_dump and pg_isready not installed
+- **Solution**: Install PostgreSQL client tools for your operating system
+
+#### "CSV file not found"
+- **Cause**: Incorrect file path or file doesn't exist
+- **Solution**: Verify file path and ensure file exists with proper permissions
+
+#### "Authentication failed"
+- **Cause**: Invalid Strapi token or expired token
+- **Solution**: Generate new token in Strapi admin panel and update STRAPI_TOKEN
+
+#### "Rate limit exceeded"
+- **Cause**: Too many requests to Strapi API
+- **Solution**: Use sequential processing or reduce batch size
+
+#### "Validation error" in migration
+- **Cause**: Data doesn't match Strapi content type schema
+- **Solution**: Review error report CSV and fix data format issues
+
+#### "Unique constraint violation"
+- **Cause**: Duplicate data being inserted
+- **Solution**: Clean data to remove duplicates or handle conflicts in Strapi
+
+### Debug Mode
+
+```bash
+# Enable debug mode for detailed logging
+DEBUG=true npm run cli test data.csv
+
+# Enable verbose logging for specific operations
+DEBUG=true npm run cli dump --csv-file data.csv
+
+# Check detailed error information
+cat error-report-*.csv  # Review error details
+```
+
+### Getting Help
+
+1. **Check Documentation**: Review README.md and this usage guide
+2. **Validate Environment**: Always run `npm run cli validate` first
+3. **Check Error Reports**: Review generated CSV error reports for details
+4. **Enable Debug Mode**: Use `DEBUG=true` for verbose logging
+5. **Test with Small Data**: Start with small CSV files to isolate issues
+6. **Check Strapi Logs**: Review Strapi server logs for API-related issues
 
 These examples provide comprehensive coverage of the system's capabilities and should help users understand how to effectively use the migration system in various scenarios.
