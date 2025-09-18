@@ -14,6 +14,7 @@ export type Dict<T = unknown> = Record<string, T>;
 // --- EXECUTION MODE TYPES ---
 
 export type ExecutionMode = "aws" | "local";
+export type EnvironmentType = "local" | "production";
 
 export interface LocalConfig {
   participationsCsvPath: string;
@@ -35,6 +36,24 @@ export interface EnvironmentConfig {
   omitGet: boolean;
   batchSize: number;
   chunkSize: number;
+}
+
+export interface CCTsConfig {
+  localPath?: string;
+  s3Bucket?: string;
+  s3Key?: string;
+  environment: EnvironmentType;
+}
+
+export interface EnhancedEnvironmentConfig {
+  type: EnvironmentType;
+  strapi: EnvironmentConfig;
+  database?: DatabaseConfig;
+  ccts: CCTsConfig;
+  aws?: {
+    region: string;
+    bucket: string;
+  };
 }
 
 // --- CSV DATA TYPES ---
@@ -350,7 +369,7 @@ export interface ExecutionModeDetector {
 // --- LOCAL TESTING TYPES ---
 
 export interface LocalTestRunner {
-  runWithCsv(csvPath: string, config?: ProcessingConfig): Promise<MigrationResult>;
+  runWithCsv(csvPath: string, config?: ProcessingConfig, cctsCsvPath?: string): Promise<MigrationResult>;
   validateEnvironment(): boolean;
   generateTestReport(): TestReport;
 }
@@ -373,6 +392,38 @@ export interface LambdaContext {
   migrationEngine: MigrationEngine;
 }
 
+// --- DATABASE DUMP TYPES ---
+
+export interface DatabaseConfig {
+  host: string;
+  port: number;
+  database: string;
+  username: string;
+  password: string;
+  ssl?: boolean;
+}
+
+export interface DumpOptions {
+  outputPath?: string;
+  timestamp?: boolean;
+  compress?: boolean;
+  dumpOnly?: boolean;
+}
+
+export interface DumpResult {
+  success: boolean;
+  filePath: string;
+  fileSize: number;
+  duration: number;
+  error?: string;
+}
+
+export interface DatabaseConnectionTest {
+  success: boolean;
+  error?: string;
+  connectionTime?: number;
+}
+
 // --- VALIDATION TYPES ---
 
 export interface ValidationResult {
@@ -385,4 +436,7 @@ export interface ConfigValidator {
   validateEnvironmentConfig(config: Partial<EnvironmentConfig>): ValidationResult;
   validateLocalConfig(config: Partial<LocalConfig>): ValidationResult;
   validateProcessingConfig(config: Partial<ProcessingConfig>): ValidationResult;
+  validateDatabaseConfig(config: Partial<DatabaseConfig>): ValidationResult;
+  validateCCTsConfig(config: Partial<CCTsConfig>): ValidationResult;
+  validateEnhancedEnvironmentConfig(config: Partial<EnhancedEnvironmentConfig>): ValidationResult;
 }

@@ -62,11 +62,13 @@ export class MigrationLocalTestRunner implements LocalTestRunner {
    * Run migration with local CSV file
    * @param csvPath - Path to the participations CSV file
    * @param config - Optional processing configuration overrides
+   * @param cctsCsvPath - Optional path to CCTs CSV file
    * @returns Migration result with statistics
    */
   async runWithCsv(
     csvPath: string,
     config?: ProcessingConfig,
+    cctsCsvPath?: string,
   ): Promise<MigrationResult> {
     console.log("🚀 Starting local migration test run");
     console.log(`📁 CSV file: ${csvPath}`);
@@ -82,6 +84,7 @@ export class MigrationLocalTestRunner implements LocalTestRunner {
       // Create local configuration
       const localConfig: LocalConfig = {
         participationsCsvPath: resolve(csvPath),
+        cctsCsvPath: cctsCsvPath ? resolve(cctsCsvPath) : undefined,
         outputPath: join(process.cwd(), `migration-results-${Date.now()}.csv`),
       };
 
@@ -325,8 +328,11 @@ export class MigrationLocalTestRunner implements LocalTestRunner {
 
     // Load CCTs if available
     if (cctsCsv) {
-      console.log("   - Loading CCTs from CSV");
-      await this.loadCCTsFromCSV(cctsCsv, cacheManager);
+      console.log("   - Loading CCTs from CSV file");
+      const cctsCount = await this.loadCCTsFromCSV(cctsCsv, cacheManager);
+      console.log(`   - Loaded ${cctsCount} CCTs from CSV`);
+    } else {
+      console.log("   - No CCTs CSV available, skipping CCTs loading");
     }
 
     // Pre-cache simple entities
@@ -340,23 +346,40 @@ export class MigrationLocalTestRunner implements LocalTestRunner {
    * Load CCTs from CSV stream
    * @param cctsCsv - CCTs CSV stream
    * @param cacheManager - Cache manager instance
+   * @returns Number of CCTs loaded
    */
   private async loadCCTsFromCSV(
     cctsCsv: Readable,
     cacheManager: CacheManager,
-  ): Promise<void> {
+  ): Promise<number> {
+    let cctsCount = 0;
+    
     return new Promise((resolve, reject) => {
       cctsCsv
         .pipe(csvParser({ mapHeaders: normalizeHeaders }))
         .on("data", (row: any) => {
-          if (row.cct) {
+          if (row.clave || row.cct) {
+            const cctValue = row.clave || row.cct;
+            cctsCount++;
+            
             // Add CCT to cache - this would need to be implemented in CacheManager
-            // For now, just log that we found it
-            console.log(`   - Found CCT: ${row.cct}`);
+            // For now, just track that we found it
+            if (cctsCount <= 5) {
+              // Only log first 5 CCTs to avoid spam
+              console.log(`     - Found CCT: ${cctValue}`);
+            } else if (cctsCount === 6) {
+              console.log(`     - ... and more CCTs`);
+            }
           }
         })
-        .on("end", resolve)
-        .on("error", reject);
+        .on("end", () => {
+          console.log(`   - CCTs processing completed: ${cctsCount} total CCTs found`);
+          resolve(cctsCount);
+        })
+        .on("error", (error) => {
+          console.error(`   - Error loading CCTs from CSV: ${error.message}`);
+          reject(error);
+        });
     });
   }
 
@@ -608,12 +631,14 @@ export function createLocalTestRunner(): LocalTestRunner {
  * Convenience function to run a quick local test
  * @param csvPath - Path to CSV file
  * @param config - Optional processing configuration
+ * @param cctsCsvPath - Optional path to CCTs CSV file
  * @returns Migration result
  */
 export async function runLocalTest(
   csvPath: string,
   config?: ProcessingConfig,
+  cctsCsvPath?: string,
 ): Promise<MigrationResult> {
   const runner = createLocalTestRunner();
-  return await runner.runWithCsv(csvPath, config);
+  return await runner.runWithCsv(csvPath, config, cctsCsvPath);
 }

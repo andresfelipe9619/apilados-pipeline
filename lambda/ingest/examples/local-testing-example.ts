@@ -7,7 +7,7 @@ import { join } from "node:path";
 import {
   runLocalTest,
   createLocalTestRunner,
-} from "__tests__/unit/local-test-runner";
+} from "../local-test-runner";
 import {
   validateEnv,
   generateTestData,

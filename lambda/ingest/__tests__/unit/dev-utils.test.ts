@@ -8,7 +8,7 @@ import { DevUtils } from "../../dev-utils";
 jest.mock("node:fs/promises");
 jest.mock("node:fs");
 jest.mock("../../config");
-jest.mock("lambda/ingest/__tests__/unit/local-test-runner");
+jest.mock("../../local-test-runner");
 
 describe("DevUtils", () => {
   let devUtils: DevUtils;

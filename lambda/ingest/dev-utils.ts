@@ -11,6 +11,7 @@ import {
   ParticipantCsvRow,
   TestReport,
   ValidationResult,
+  EnvironmentType,
 } from "./types";
 import {
   createProcessingConfig,
@@ -18,7 +19,16 @@ import {
   getRequiredEnvironmentVariables,
   loadEnvironmentConfig,
   validateConfiguration,
+  detectEnvironmentType,
+  loadEnhancedEnvironmentConfig,
+  validateEnhancedConfiguration,
+  generateConfigurationErrorMessage,
 } from "./config";
+import {
+  getRequiredDatabaseEnvironmentVariables,
+  loadDatabaseConfig,
+  validateDatabaseConfig,
+} from "./database-config";
 import { createLocalTestRunner } from "./local-test-runner";
 
 /**
@@ -47,11 +57,39 @@ export class DevUtils {
    * Validate complete environment setup
    * @returns Detailed validation result with recommendations
    */
-  validateEnvironmentSetup(): ValidationResult & { recommendations: string[] } {
+  validateEnvironmentSetup(): ValidationResult & { 
+    recommendations: string[];
+    environmentType: EnvironmentType;
+    detectionDetails: any;
+    configurationDetails: any;
+  } {
     console.log("🔍 Performing comprehensive environment validation");
 
     const recommendations: string[] = [];
-    const validation = validateConfiguration("local", this.envConfig);
+    
+    // Use enhanced environment validation
+    const { 
+      validateCompleteEnvironment,
+      getEnvironmentDetectionDetails,
+      generateConfigurationErrorMessage 
+    } = require('./config');
+    
+    const completeValidation = validateCompleteEnvironment();
+    const detectionDetails = getEnvironmentDetectionDetails();
+    const environmentType = completeValidation.environmentType;
+
+    console.log(`📍 Detected environment type: ${environmentType}`);
+    console.log(`🔍 Detection reasoning: ${detectionDetails.reasoning}`);
+
+    // Show environment detection details if there are conflicting indicators
+    const prodIndicators = detectionDetails.indicators.production.filter((i: any) => i.present);
+    const localIndicators = detectionDetails.indicators.local.filter((i: any) => i.present);
+    
+    if (prodIndicators.length > 0 && localIndicators.length > 0) {
+      console.log("⚠️  Mixed environment indicators detected:");
+      console.log("   Production indicators:", prodIndicators.map((i: any) => i.indicator).join(', '));
+      console.log("   Local indicators:", localIndicators.map((i: any) => i.indicator).join(', '));
+    }
 
     // Check for .env file
     const envFilePath = join(process.cwd(), ".env");
@@ -62,35 +100,20 @@ export class DevUtils {
       recommendations.push(
         "Copy .env.example to .env and fill in the required values",
       );
+    } else {
+      console.log("✅ Found .env file in project root");
     }
 
-    // Check required environment variables
-    const requiredVars = getRequiredEnvironmentVariables();
-    const missingRequired = requiredVars.filter(
-      (varName) => !process.env[varName],
-    );
-
-    if (missingRequired.length > 0) {
-      recommendations.push(
-        `Set required environment variables: ${missingRequired.join(", ")}`,
-      );
-    }
-
-    // Check optional environment variables and suggest defaults
-    const optionalVars = getOptionalEnvironmentVariables();
-    const missingOptional = Object.keys(optionalVars).filter(
-      (varName) => !process.env[varName],
-    );
-
-    if (missingOptional.length > 0) {
-      recommendations.push(
-        "Consider setting optional environment variables for better control:",
-      );
-      missingOptional.forEach((varName) => {
+    // Check for ccts_export.csv in project root for local environment
+    if (environmentType === "local") {
+      const cctsPath = join(process.cwd(), "ccts_export.csv");
+      if (!existsSync(cctsPath)) {
         recommendations.push(
-          `  - ${varName}=${optionalVars[varName]} (default)`,
+          "Place ccts_export.csv in project root for automatic CCTs loading",
         );
-      });
+      } else {
+        console.log("✅ Found ccts_export.csv in project root");
+      }
     }
 
     // Check test data directory
@@ -99,6 +122,8 @@ export class DevUtils {
       recommendations.push(
         "Create a test-data directory with sample CSV files for testing",
       );
+    } else {
+      console.log("✅ Found test-data directory");
     }
 
     // Check for sample CSV files
@@ -109,9 +134,60 @@ export class DevUtils {
       );
     }
 
+    // Add environment-specific recommendations based on validation results
+    if (environmentType === "local") {
+      if (!completeValidation.configurationDetails.database.isValid) {
+        recommendations.push(
+          "Configure database environment variables for dump functionality",
+          "Ensure local database is running and accessible"
+        );
+      }
+      recommendations.push(
+        "Use PROCESS_MODE=sequential for easier debugging",
+        "Set OMIT_GET=true for faster testing (skips existence checks)"
+      );
+    } else {
+      if (!completeValidation.configurationDetails.aws?.isValid) {
+        recommendations.push(
+          "Configure AWS credentials and S3 bucket settings",
+          "Verify S3 bucket permissions for file access"
+        );
+      }
+      recommendations.push(
+        "Test database connectivity before running operations in production",
+        "Ensure all environment variables are set in your deployment platform"
+      );
+    }
+
+    // Add specific recommendations based on validation errors
+    completeValidation.errors.forEach((error: string) => {
+      if (error.includes('DATABASE_')) {
+        recommendations.push("Review database configuration - some variables may be missing");
+      }
+      if (error.includes('STRAPI_')) {
+        recommendations.push("Check Strapi API configuration and connectivity");
+      }
+      if (error.includes('CCTs')) {
+        recommendations.push("Verify CCTs data source configuration");
+      }
+    });
+
+    // Generate detailed error message if validation failed
+    if (!completeValidation.isValid) {
+      const errorMessage = generateConfigurationErrorMessage(completeValidation, environmentType);
+      console.log("\n" + errorMessage);
+    } else {
+      console.log("✅ All environment validation checks passed!");
+    }
+
     return {
-      ...validation,
+      isValid: completeValidation.isValid,
+      errors: completeValidation.errors,
+      warnings: completeValidation.warnings,
       recommendations,
+      environmentType,
+      detectionDetails,
+      configurationDetails: completeValidation.configurationDetails,
     };
   }
 
@@ -584,13 +660,266 @@ export function getDevUtils(): DevUtils {
 }
 
 /**
- * Quick environment validation
- * @returns Validation result with recommendations
+ * Quick environment validation (enhanced version)
+ * @returns Validation result with recommendations and environment-specific guidance
  */
 export function validateEnv(): ValidationResult & {
   recommendations: string[];
+  environmentType: EnvironmentType;
+  configurationGuidance: string;
 } {
-  return getDevUtils().validateEnvironmentSetup();
+  // Use enhanced validation by default
+  return validateEnhancedEnv();
+}
+
+/**
+ * Enhanced environment validation with database and CCTs support
+ * @returns Detailed validation result with environment-specific guidance
+ */
+export function validateEnhancedEnv(): ValidationResult & {
+  environmentType: EnvironmentType;
+  configurationGuidance: string;
+  recommendations: string[];
+} {
+  const environmentType = detectEnvironmentType();
+  const enhancedConfig = loadEnhancedEnvironmentConfig();
+  const validation = validateEnhancedConfiguration(enhancedConfig);
+  const configurationGuidance = generateConfigurationErrorMessage(validation, environmentType);
+  
+  const recommendations: string[] = [];
+  
+  // Add environment-specific recommendations
+  if (environmentType === "local") {
+    recommendations.push(
+      "Ensure .env file exists with required variables",
+      "Place ccts_export.csv in project root for automatic loading",
+      "Verify database is running and accessible",
+      "Use test-data directory for sample CSV files"
+    );
+  } else {
+    recommendations.push(
+      "Verify AWS credentials and permissions",
+      "Check S3 bucket configuration",
+      "Ensure database connectivity in production",
+      "Review environment variable configuration"
+    );
+  }
+
+  return {
+    isValid: validation.isValid,
+    errors: validation.errors,
+    warnings: validation.warnings,
+    environmentType,
+    configurationGuidance,
+    recommendations,
+  };
+}
+
+/**
+ * Enhanced error handling and recovery suggestions for operations
+ * @param operation - The operation that failed
+ * @param error - The error that occurred
+ * @param context - Additional context about the operation
+ * @returns Formatted error message with recovery suggestions
+ */
+export function formatOperationError(
+  operation: 'dump' | 'migration' | 'validation' | 'connection',
+  error: string | Error,
+  context?: {
+    filePath?: string;
+    duration?: number;
+    recordCount?: number;
+    successRate?: number;
+  }
+): string {
+  const errorMessage = error instanceof Error ? error.message : error;
+  let formattedMessage = `❌ ${operation.toUpperCase()} FAILED: ${errorMessage}\n\n`;
+
+  // Add context information if available
+  if (context) {
+    formattedMessage += "📊 OPERATION CONTEXT:\n";
+    if (context.filePath) formattedMessage += `   - File: ${context.filePath}\n`;
+    if (context.duration) formattedMessage += `   - Duration: ${(context.duration / 1000).toFixed(2)}s\n`;
+    if (context.recordCount) formattedMessage += `   - Records: ${context.recordCount}\n`;
+    if (context.successRate !== undefined) formattedMessage += `   - Success Rate: ${context.successRate.toFixed(1)}%\n`;
+    formattedMessage += "\n";
+  }
+
+  // Add operation-specific recovery suggestions
+  switch (operation) {
+    case 'dump':
+      formattedMessage += "🗄️  DATABASE DUMP RECOVERY SUGGESTIONS:\n";
+      formattedMessage += "   1. Verify database server is running and accessible\n";
+      formattedMessage += "   2. Check DATABASE_* environment variables are correct\n";
+      formattedMessage += "   3. Ensure PostgreSQL client tools (pg_dump) are installed\n";
+      formattedMessage += "   4. Verify sufficient disk space in output directory\n";
+      formattedMessage += "   5. Check output directory write permissions\n";
+      formattedMessage += "   6. Try without compression: --no-compress\n";
+      formattedMessage += "   7. Test connection: migration-cli validate\n";
+      
+      if (errorMessage.includes('timeout')) {
+        formattedMessage += "   8. Database timeout - check server load and network\n";
+      }
+      if (errorMessage.includes('permission')) {
+        formattedMessage += "   8. Permission denied - check user privileges\n";
+      }
+      if (errorMessage.includes('space')) {
+        formattedMessage += "   8. Disk space issue - free up space or choose different output path\n";
+      }
+      break;
+
+    case 'migration':
+      formattedMessage += "🚀 MIGRATION RECOVERY SUGGESTIONS:\n";
+      formattedMessage += "   1. Verify Strapi server is running and accessible\n";
+      formattedMessage += "   2. Check STRAPI_BASE_URL and STRAPI_TOKEN configuration\n";
+      formattedMessage += "   3. Validate CSV file format and data quality\n";
+      formattedMessage += "   4. Try sequential processing: --mode sequential\n";
+      formattedMessage += "   5. Reduce batch size: --batch-size 10\n";
+      formattedMessage += "   6. Check network connectivity to Strapi server\n";
+      formattedMessage += "   7. Review Strapi server logs for detailed errors\n";
+      
+      if (context?.successRate !== undefined && context.successRate < 50) {
+        formattedMessage += "   8. Low success rate indicates systematic issues:\n";
+        formattedMessage += "      - Check Strapi content type configurations\n";
+        formattedMessage += "      - Validate required fields and data types\n";
+        formattedMessage += "      - Review CSV data format matches expected schema\n";
+      }
+      break;
+
+    case 'validation':
+      formattedMessage += "🔍 VALIDATION RECOVERY SUGGESTIONS:\n";
+      formattedMessage += "   1. Create .env file with required variables\n";
+      formattedMessage += "   2. Check environment variable names and values\n";
+      formattedMessage += "   3. Ensure all required services are running\n";
+      formattedMessage += "   4. Verify file paths and permissions\n";
+      formattedMessage += "   5. Test individual components separately\n";
+      formattedMessage += "   6. Use migration-cli env to see current configuration\n";
+      formattedMessage += "   7. Run migration-cli setup to create test environment\n";
+      break;
+
+    case 'connection':
+      formattedMessage += "🔗 CONNECTION RECOVERY SUGGESTIONS:\n";
+      formattedMessage += "   1. Check service is running on specified host/port\n";
+      formattedMessage += "   2. Verify network connectivity and firewall settings\n";
+      formattedMessage += "   3. Test credentials and authentication\n";
+      formattedMessage += "   4. Check SSL/TLS configuration if applicable\n";
+      formattedMessage += "   5. Try connecting from same network/machine\n";
+      formattedMessage += "   6. Review service logs for connection errors\n";
+      formattedMessage += "   7. Verify DNS resolution for hostnames\n";
+      break;
+  }
+
+  // Add general troubleshooting steps
+  formattedMessage += "\n🔧 GENERAL TROUBLESHOOTING:\n";
+  formattedMessage += "   • Run migration-cli validate for comprehensive checks\n";
+  formattedMessage += "   • Check system resources (CPU, memory, disk space)\n";
+  formattedMessage += "   • Review application and system logs\n";
+  formattedMessage += "   • Try with minimal configuration first\n";
+  formattedMessage += "   • Test with sample data: migration-cli quick\n";
+
+  return formattedMessage;
+}
+
+/**
+ * Provide progress feedback with estimated completion time
+ * @param current - Current progress count
+ * @param total - Total items to process
+ * @param startTime - Operation start time
+ * @param operation - Description of the operation
+ * @returns Formatted progress message
+ */
+export function formatProgressMessage(
+  current: number,
+  total: number,
+  startTime: number,
+  operation: string = "Processing"
+): string {
+  const percentage = Math.round((current / total) * 100);
+  const elapsed = Date.now() - startTime;
+  const rate = current / (elapsed / 1000);
+  const remaining = total - current;
+  const eta = remaining > 0 ? Math.round(remaining / rate) : 0;
+  
+  let message = `⏳ ${operation}: ${current}/${total} (${percentage}%)`;
+  
+  if (rate > 0) {
+    message += ` | Rate: ${rate.toFixed(1)}/sec`;
+  }
+  
+  if (eta > 0) {
+    if (eta < 60) {
+      message += ` | ETA: ${eta}s`;
+    } else if (eta < 3600) {
+      message += ` | ETA: ${Math.round(eta / 60)}m`;
+    } else {
+      message += ` | ETA: ${Math.round(eta / 3600)}h`;
+    }
+  }
+  
+  return message;
+}
+
+/**
+ * Format file size and duration information for completed operations
+ * @param filePath - Path to the created file
+ * @param fileSize - Size of the file in bytes
+ * @param duration - Operation duration in milliseconds
+ * @param operation - Description of the operation
+ * @returns Formatted completion message
+ */
+export function formatCompletionMessage(
+  filePath: string,
+  fileSize: number,
+  duration: number,
+  operation: string = "Operation"
+): string {
+  const sizeFormatted = formatFileSize(fileSize);
+  const durationFormatted = formatDuration(duration);
+  const rate = fileSize > 0 ? (fileSize / 1024 / 1024) / (duration / 1000) : 0;
+  
+  let message = `✅ ${operation} completed successfully!\n`;
+  message += `   📁 File: ${filePath}\n`;
+  message += `   📊 Size: ${sizeFormatted}\n`;
+  message += `   ⏱️  Duration: ${durationFormatted}\n`;
+  
+  if (rate > 0.1) {
+    message += `   🚀 Rate: ${rate.toFixed(2)} MB/s\n`;
+  }
+  
+  return message;
+}
+
+/**
+ * Format file size in human-readable format
+ */
+function formatFileSize(bytes: number): string {
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let size = bytes;
+  let unitIndex = 0;
+  
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex++;
+  }
+  
+  return `${size.toFixed(2)} ${units[unitIndex]}`;
+}
+
+/**
+ * Format duration in human-readable format
+ */
+function formatDuration(milliseconds: number): string {
+  const seconds = Math.floor(milliseconds / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  
+  if (hours > 0) {
+    return `${hours}h ${minutes % 60}m ${seconds % 60}s`;
+  } else if (minutes > 0) {
+    return `${minutes}m ${seconds % 60}s`;
+  } else {
+    return `${seconds}s`;
+  }
 }
 
 /**

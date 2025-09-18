@@ -7,6 +7,7 @@ import { Readable } from "node:stream";
 import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { S3Event } from "aws-lambda";
 import { createReadStream, existsSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { ExecutionMode, FileInputHandler, LocalConfig } from "./types";
 
 /**
@@ -85,6 +86,7 @@ export class S3FileInputHandler implements FileInputHandler {
   async getCctsCsv(): Promise<Readable | null> {
     if (!this.cctsKey) {
       console.log(`ℹ️  No CCTs file key configured, skipping CCTs download`);
+      console.log(`   - CCTs Source: none`);
       return null;
     }
 
@@ -104,10 +106,12 @@ export class S3FileInputHandler implements FileInputHandler {
         console.log(
           `⚠️  CCTs file exists but has no body: s3://${this.bucket}/${this.cctsKey}`,
         );
+        console.log(`   - CCTs Source: none (empty S3 object)`);
         return null;
       }
 
       console.log(`✅ Successfully downloaded CCTs CSV from S3`);
+      console.log(`   - CCTs Source: S3`);
       return response.Body as Readable;
     } catch (error) {
       const errorMessage =
@@ -115,6 +119,7 @@ export class S3FileInputHandler implements FileInputHandler {
       console.log(
         `ℹ️  CCTs file not found or inaccessible, continuing without it: ${errorMessage}`,
       );
+      console.log(`   - CCTs Source: none (S3 error)`);
       return null;
     }
   }
@@ -134,6 +139,11 @@ export class LocalFileInputHandler implements FileInputHandler {
   constructor(config: LocalConfig) {
     this.participationsCsvPath = config.participationsCsvPath;
     this.cctsCsvPath = config.cctsCsvPath;
+
+    // Auto-detect ccts_export.csv from project root if no CCTs path specified
+    if (!this.cctsCsvPath) {
+      this.cctsCsvPath = this.detectProjectRootCctsFile();
+    }
 
     console.log(`📁 LocalFileInputHandler initialized:`);
     console.log(`   - Participations file: ${this.participationsCsvPath}`);
@@ -199,6 +209,7 @@ export class LocalFileInputHandler implements FileInputHandler {
   getCctsCsv(): Promise<Readable | null> {
     if (!this.cctsCsvPath) {
       console.log(`ℹ️  No CCTs file path configured, skipping CCTs file`);
+      console.log(`   - CCTs Source: none`);
       return Promise.resolve(null);
     }
 
@@ -210,6 +221,7 @@ export class LocalFileInputHandler implements FileInputHandler {
         console.log(
           `ℹ️  CCTs CSV file not found: ${this.cctsCsvPath}. Continuing without it.`,
         );
+        console.log(`   - CCTs Source: none (file not found)`);
         return Promise.resolve(null);
       }
 
@@ -218,11 +230,13 @@ export class LocalFileInputHandler implements FileInputHandler {
       // Add error handling to the stream
       stream.on("error", (error) => {
         console.error(`❌ Error reading CCTs CSV file: ${error.message}`);
+        console.log(`   - CCTs Source: none (read error)`);
         // Don't throw here - CCTs file is optional
         return null;
       });
 
       console.log(`✅ Successfully opened CCTs CSV file for reading`);
+      console.log(`   - CCTs Source: local file`);
       return Promise.resolve(stream);
     } catch (error) {
       const errorMessage =
@@ -230,7 +244,101 @@ export class LocalFileInputHandler implements FileInputHandler {
       console.log(
         `ℹ️  Failed to read CCTs CSV file, continuing without it: ${errorMessage}`,
       );
+      console.log(`   - CCTs Source: none (error)`);
       return Promise.resolve(null);
+    }
+  }
+
+  /**
+   * Detect ccts_export.csv file in project root
+   * @returns Path to ccts_export.csv if found, undefined otherwise
+   */
+  private detectProjectRootCctsFile(): string | undefined {
+    // Start from current working directory and traverse up to find project root
+    let currentDir = process.cwd();
+    const maxLevels = 5; // Prevent infinite traversal
+    
+    for (let i = 0; i < maxLevels; i++) {
+      const cctsCsvPath = join(currentDir, 'ccts_export.csv');
+      
+      if (existsSync(cctsCsvPath)) {
+        // Validate the CCTs file format
+        if (this.validateCctsFileFormat(cctsCsvPath)) {
+          console.log(`✅ Auto-detected CCTs file: ${cctsCsvPath}`);
+          console.log(`   - CCTs Source: local file (auto-detected)`);
+          return cctsCsvPath;
+        } else {
+          console.warn(`⚠️  CCTs file found but format validation failed: ${cctsCsvPath}`);
+          return undefined;
+        }
+      }
+      
+      // Check if we're at the project root (look for .git directory specifically)
+      // We use .git instead of package.json because subdirectories might have their own package.json
+      const gitPath = join(currentDir, '.git');
+      
+      if (existsSync(gitPath)) {
+        // We're at project root, stop searching
+        break;
+      }
+      
+      // Move up one directory
+      const parentDir = resolve(currentDir, '..');
+      if (parentDir === currentDir) {
+        // Reached filesystem root
+        break;
+      }
+      currentDir = parentDir;
+    }
+    
+    return undefined;
+  }
+
+  /**
+   * Validate CCTs CSV file format
+   * @param filePath Path to the CCTs CSV file
+   * @returns true if format is valid, false otherwise
+   */
+  private validateCctsFileFormat(filePath: string): boolean {
+    try {
+      // Read first few lines to validate format
+      const fs = require('fs');
+      const content = fs.readFileSync(filePath, 'utf8');
+      const lines = content.split('\n').filter((line: string) => line.trim());
+      
+      if (lines.length < 2) {
+        console.warn(`⚠️  CCTs file has insufficient data: ${filePath}`);
+        return false;
+      }
+      
+      // Check header format - should contain 'id' and 'clave' columns
+      const header = lines[0].toLowerCase();
+      const hasId = header.includes('id');
+      const hasClave = header.includes('clave');
+      
+      if (!hasId || !hasClave) {
+        console.warn(`⚠️  CCTs file missing required columns (id, clave): ${filePath}`);
+        console.warn(`   Header found: ${lines[0]}`);
+        return false;
+      }
+      
+      // Validate at least one data row
+      if (lines.length >= 2) {
+        const dataRow = lines[1];
+        const columns = dataRow.split(',');
+        
+        if (columns.length < 2) {
+          console.warn(`⚠️  CCTs file data row has insufficient columns: ${filePath}`);
+          return false;
+        }
+      }
+      
+      console.log(`✅ CCTs file format validation passed: ${filePath}`);
+      return true;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.warn(`⚠️  Error validating CCTs file format: ${errorMessage}`);
+      return false;
     }
   }
 
