@@ -8,5 +8,5 @@ node_modules
 cdk.out
 /.kiro
 dist
-test-data
+lambda/ingest/test-data
 coverage

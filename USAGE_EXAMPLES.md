@@ -1,18 +1,56 @@
 # Usage Examples
 
-This document provides comprehensive examples for using the Apilados Pipeline data migration system in various scenarios.
+This document provides comprehensive examples for using the Apilados Pipeline data processing system in various scenarios.
 
 ## Table of Contents
 
 1. [Local Development Examples](#local-development-examples)
 2. [Database Dump Examples](#database-dump-examples)
-3. [AWS Deployment Examples](#aws-deployment-examples)
-4. [CLI Usage Examples](#cli-usage-examples)
-5. [Programmatic Usage Examples](#programmatic-usage-examples)
-6. [Configuration Examples](#configuration-examples)
-7. [Error Handling Examples](#error-handling-examples)
-8. [Performance Optimization Examples](#performance-optimization-examples)
-9. [Troubleshooting Guide](#troubleshooting-guide)
+3. [S3 Event Simulation Examples](#s3-event-simulation-examples)
+4. [AWS Deployment Examples](#aws-deployment-examples)
+5. [CLI Usage Examples](#cli-usage-examples)
+6. [Programmatic Usage Examples](#programmatic-usage-examples)
+7. [Configuration Examples](#configuration-examples)
+8. [Error Handling Examples](#error-handling-examples)
+9. [Performance Optimization Examples](#performance-optimization-examples)
+10. [Troubleshooting Guide](#troubleshooting-guide)
+
+## Production Simulation Workflow
+
+### Understanding the Production Environment
+
+In production, the system works as follows:
+1. **S3 Event**: A CSV file is uploaded to an S3 bucket
+2. **Lambda Trigger**: The upload triggers the ingest lambda function
+3. **Data Processing**: The lambda processes the CSV and adds new records to the existing Strapi database
+4. **Database State**: The database already contains base data and structure
+
+### Local Simulation Setup
+
+To simulate this locally, we use:
+- **Database Dump** (`strapi_db_2025-06-28.dump`): Acts as the "existing production database" with base data
+- **Event CSV** (`apilado-universal.csv`): Simulates the "CSV file uploaded to S3" that triggers processing
+- **CCTs CSV** (`ccts_export.csv`): Optional performance optimization data
+
+### Complete Simulation Workflow
+
+```bash
+cd lambda/ingest
+
+# 1. Validate all components are ready
+npm run cli validate-dump
+
+# 2. Option A: Use existing dump as seeders + simulate S3 events
+./restore-dump.sh  # Restore the "production database state"
+npm run cli simulate ./test-data/apilado-universal.csv  # Simulate S3 event processing
+
+# 2. Option B: Create fresh dump + simulate S3 events (complete workflow)
+npm run cli dump  # Create database backup
+npm run cli simulate ./test-data/apilado-universal.csv  # Simulate S3 event processing
+
+# Both options simulate the production lambda processing a CSV file
+# against an existing database with base data
+```
 
 ## Local Development Examples
 
@@ -54,21 +92,21 @@ npm run cli validate
 npm run cli quick
 ```
 
-### Testing with Custom CSV Files
+### S3 Event Simulation with Custom CSV Files
 
 ```bash
-# Test with your own CSV file
-npm run cli test ./data/my-participations.csv
+# Simulate S3 event with your own CSV file
+npm run cli simulate ./data/my-participations.csv
 
-# Test with custom configuration
-npm run cli test ./data/my-participations.csv \
+# Simulate with custom configuration
+npm run cli simulate ./data/my-participations.csv \
   --mode sequential \
   --batch-size 25 \
   --omit-get \
   --ccts ./data/my-ccts.csv
 
-# Test with performance optimization
-npm run cli test ./data/large-dataset.csv \
+# Simulate with performance optimization
+npm run cli simulate ./data/large-dataset.csv \
   --mode parallel \
   --batch-size 200 \
   --omit-get
@@ -86,17 +124,42 @@ npm run cli validate
 # 2. Generate test data if needed
 npm run cli generate --output test-data --count 50
 
-# 3. Test changes with small dataset
-npm run cli test test-data/sample.csv --batch-size 10
+# 3. Simulate S3 events with small dataset
+npm run cli simulate test-data/sample.csv --batch-size 10
 
 # 4. Run full test suite
 npm test
 
-# 5. Test with larger dataset
-npm run cli test test-data/large-sample.csv --mode parallel
+# 5. Simulate S3 events with larger dataset
+npm run cli simulate test-data/large-sample.csv --mode parallel
 ```
 
 ## Database Dump Examples
+
+### Understanding the Dump Workflow
+
+The database dump provides the foundation for local development:
+1. **Database dump file** (`strapi_db_2025-06-28.dump`) serves as **seeders** - contains the base database structure and initial data
+2. **Event CSV** (`apilado-universal.csv`) contains the **event data to simulate** - simulates the CSV file that triggers the lambda in production
+3. **CCTs CSV** (`ccts_export.csv`) provides optional performance optimization data
+
+This allows local testing of the complete production workflow: restore database → simulate S3 events.
+
+### Validate Dump Workflow
+
+```bash
+cd lambda/ingest
+
+# Validate that all required files are present and ready
+npm run cli validate-dump
+
+# This checks for:
+# ✅ Database dump file (seeders): strapi_db_2025-06-28.dump
+# ✅ Participants CSV (data to migrate): apilado-universal.csv  
+# ✅ CCTs CSV (reference data): ccts_export.csv
+# ✅ PostgreSQL tools availability
+# ✅ Database connection (if database is running)
+```
 
 ### Basic Database Dump Operations
 
@@ -106,45 +169,71 @@ cd lambda/ingest
 # Interactive dump (prompts for options)
 npm run cli dump
 
-# Create database dump only
-npm run cli dump --dump-only
+# Create database dump (for creating new seeders)
+npm run cli dump
 
 # Create compressed database dump
-npm run cli dump --dump-only --compress --output ./backups
+npm run cli dump --compress --output ./backups
 
 # Dump with custom output directory
-npm run cli dump --dump-only --output /path/to/backups
+npm run cli dump --output /path/to/backups
 
 # Dump without timestamp in filename
-npm run cli dump --dump-only --no-timestamp
+npm run cli dump --no-timestamp
 ```
 
-### Dump and Migration Workflows
+## S3 Event Simulation Examples
+
+### Complete Development Workflow
+
+The complete workflow simulates production: create fresh database dump (seeders) → simulate S3 events with CSV data.
 
 ```bash
-# Dump database and run migration with CSV file
-npm run cli dump --csv-file ./data/participations.csv
+# Step 1: Create database backup
+npm run cli dump --compress
 
-# Dump and migrate with custom settings
-npm run cli dump \
-  --csv-file ./data/participations.csv \
+# Step 2: Simulate S3 event with event CSV
+npm run cli simulate ./test-data/apilado-universal.csv
+
+# This workflow:
+# 1. Creates a fresh database dump (new seeders)
+# 2. Automatically detects ccts_export.csv for performance optimization
+# 3. Simulates S3 event processing with the event CSV
+# 4. Replicates the production lambda processing a CSV upload event
+
+# Custom simulation with specific settings
+npm run cli simulate ./test-data/apilado-universal.csv \
   --mode parallel \
-  --batch-size 100 \
-  --compress
+  --batch-size 100
 
-# Dump and migrate with custom CCTs file
-npm run cli dump \
-  --csv-file ./data/participations.csv \
-  --ccts ./data/custom-ccts.csv \
+# Simulation with custom CCTs file for performance optimization
+npm run cli simulate ./test-data/apilado-universal.csv \
+  --ccts ./test-data/ccts_export.csv \
   --mode sequential
 
-# Dump and migrate with performance optimization
-npm run cli dump \
-  --csv-file ./data/large-dataset.csv \
+# Performance-optimized simulation for large datasets
+npm run cli simulate ./test-data/large-sample.csv \
   --mode parallel \
   --batch-size 200 \
-  --omit-get \
-  --compress
+  --omit-get
+```
+
+### Using Existing Dump as Seeders
+
+If you already have a dump file (like `strapi_db_2025-06-28.dump`), you can restore it manually and then simulate S3 events:
+
+```bash
+# 1. Restore existing dump file (seeders) using the restore script
+./restore-dump.sh
+
+# 2. Simulate S3 event with event CSV (simulates production event)
+npm run cli simulate ./test-data/apilado-universal.csv
+
+# Or simulate with custom configuration
+npm run cli simulate ./test-data/apilado-universal.csv \
+  --mode parallel \
+  --batch-size 100 \
+  --ccts ./test-data/ccts_export.csv
 ```
 
 ### Database Configuration Examples
@@ -154,11 +243,11 @@ npm run cli dump \
 npm run cli validate
 
 # Test database connection before dump
-npm run cli dump --dump-only  # Will test connection first
+npm run cli dump  # Will test connection first
 
 # Environment-specific database dumps
-DATABASE_HOST=production.db.com npm run cli dump --dump-only
-DATABASE_HOST=staging.db.com npm run cli dump --dump-only
+DATABASE_HOST=production.db.com npm run cli dump
+DATABASE_HOST=staging.db.com npm run cli dump
 ```
 
 ### Automated Backup Workflows
@@ -169,7 +258,7 @@ DATABASE_HOST=staging.db.com npm run cli dump --dump-only
 cd /path/to/apilados-pipeline/lambda/ingest
 
 # Create timestamped backup
-npm run cli dump --dump-only --compress --output ./daily-backups
+npm run cli dump --compress --output ./daily-backups
 
 # Cleanup old backups (keep last 7 days)
 find ./daily-backups -name "*.sql*" -mtime +7 -delete
@@ -179,40 +268,41 @@ echo "$(date): Database backup completed" >> backup.log
 ```
 
 ```bash
-# Pre-migration backup workflow
+# Pre-simulation backup workflow
 #!/bin/bash
 cd /path/to/apilados-pipeline/lambda/ingest
 
-echo "Creating pre-migration backup..."
-npm run cli dump --dump-only --compress --output ./pre-migration-backups
+echo "Creating pre-simulation backup..."
+npm run cli dump --compress --output ./pre-simulation-backups
 
 if [ $? -eq 0 ]; then
-    echo "Backup successful, proceeding with migration..."
-    npm run cli test ./data/new-data.csv --mode parallel
+    echo "Backup successful, proceeding with S3 event simulation..."
+    npm run cli simulate ./data/new-data.csv --mode parallel
 else
-    echo "Backup failed, aborting migration"
+    echo "Backup failed, aborting simulation"
     exit 1
 fi
 ```
 
 ### CCTs Data Handling Examples
 
+CCTs (Centro de Trabajo) data provides optional performance optimization for event simulation.
+
 ```bash
-# Auto-detect ccts_export.csv from project root
-npm run cli dump --csv-file ./data/participations.csv
-# Will automatically use ./ccts_export.csv if available
+# Auto-detect ccts_export.csv for performance optimization
+npm run cli simulate ./test-data/apilado-universal.csv
+# Will automatically use ./test-data/ccts_export.csv if available for performance
 
-# Use specific CCTs file
-npm run cli dump \
-  --csv-file ./data/participations.csv \
-  --ccts ./data/custom-ccts.csv
+# Use specific CCTs file for performance optimization
+npm run cli simulate ./test-data/apilado-universal.csv \
+  --ccts ./test-data/ccts_export.csv
 
-# Disable automatic CCTs detection for testing
-npm run cli test ./data/participations.csv --no-auto-ccts
+# Simulate S3 events without CCTs performance optimization (will show warnings but continue)
+npm run cli simulate ./test-data/apilado-universal.csv
 
-# Test with different CCTs sources
-npm run cli test ./data/participations.csv --ccts ./data/test-ccts.csv
-npm run cli test ./data/participations.csv --ccts ./data/production-ccts.csv
+# Simulate with different CCTs sources for different scenarios
+npm run cli simulate ./test-data/apilado-universal.csv --ccts ./test-data/ccts_export.csv
+npm run cli simulate ./test-data/sample.csv --ccts ./test-data/ccts_export.csv
 ```
 
 ### Database Dump Troubleshooting
@@ -251,7 +341,7 @@ npx cdk deploy
 ```typescript
 // lib/apilados-pipeline-stack.ts
 const params: Params = {
-  bucketName: 'my-migration-bucket',
+  bucketName: 'my-processing-bucket',
   processMode: 'parallel',
   omitGet: false,
   batchSize: 150,
@@ -275,14 +365,14 @@ Once deployed, the lambda automatically processes CSV files uploaded to S3:
 
 ```bash
 # Upload CSV file to trigger processing
-aws s3 cp ./data/participations.csv s3://your-migration-bucket/uploads/
+aws s3 cp ./data/participations.csv s3://your-processing-bucket/uploads/
 
 # Monitor lambda logs
 aws logs tail /aws/lambda/apilados-pipeline-ingest --follow
 
 # Download error reports if any
-aws s3 ls s3://your-migration-bucket/errors/
-aws s3 cp s3://your-migration-bucket/errors/error-report.csv ./
+aws s3 ls s3://your-processing-bucket/errors/
+aws s3 cp s3://your-processing-bucket/errors/error-report.csv ./
 ```
 
 ## CLI Usage Examples
@@ -325,24 +415,25 @@ npm run cli setup --dir complete-test-env
 # Quick validation test
 npm run cli quick
 
-# Test specific scenarios
-npm run cli test data.csv --mode sequential    # Debug mode
-npm run cli test data.csv --mode parallel     # Performance mode
-npm run cli test data.csv --omit-get          # Fast mode
-npm run cli test data.csv --batch-size 10     # Small batches
+# Simulate specific scenarios
+npm run cli simulate data.csv --mode sequential    # Debug mode
+npm run cli simulate data.csv --mode parallel     # Performance mode
+npm run cli simulate data.csv --omit-get          # Fast mode
+npm run cli simulate data.csv --batch-size 10     # Small batches
 
 # Performance testing
-time npm run cli test large-dataset.csv --mode parallel --batch-size 500
+time npm run cli simulate large-dataset.csv --mode parallel --batch-size 500
 ```
 
 ### Database Operations
 
 ```bash
 # Database dump operations
-npm run cli dump                    # Interactive mode
-npm run cli dump --dump-only        # Backup only
+npm run cli dump                    # Create backup
 npm run cli dump --compress         # Compressed backup
-npm run cli dump --csv-file data.csv # Dump and migrate
+
+# S3 event simulation operations
+npm run cli simulate data.csv       # Simulate S3 event
 
 # Database configuration validation
 npm run cli validate                # Includes database config check
@@ -542,7 +633,7 @@ const productionParams: Params = {
   omitGet: false,
   batchSize: 200,
   chunkSize: 300,
-  bucketName: 'production-migration-bucket'
+  bucketName: 'production-processing-bucket'
 };
 ```
 
@@ -959,11 +1050,11 @@ npm run cli test large-file.csv --batch-size 25 --mode sequential
 # 1. Place ccts_export.csv in project root for auto-detection
 cp ./data/ccts.csv ./ccts_export.csv
 
-# 2. Specify CCTs file explicitly
-npm run cli test data.csv --ccts ./data/ccts.csv
+# 2. Specify CCTs file explicitly for performance optimization
+npm run cli simulate data.csv --ccts ./data/ccts.csv
 
-# 3. Disable CCTs if not needed
-npm run cli test data.csv --no-auto-ccts
+# 3. Disable CCTs performance optimization if not needed
+npm run cli simulate data.csv --no-auto-ccts
 
 # Error: Invalid CCTs format
 # Solution: Validate CCTs CSV structure
@@ -979,16 +1070,16 @@ head -5 ./ccts_export.csv
 # Solutions:
 
 # 1. Use parallel processing
-npm run cli test data.csv --mode parallel
+npm run cli simulate data.csv --mode parallel
 
 # 2. Increase batch size
-npm run cli test data.csv --batch-size 200
+npm run cli simulate data.csv --batch-size 200
 
 # 3. Skip GET requests for performance
-npm run cli test data.csv --omit-get
+npm run cli simulate data.csv --omit-get
 
 # 4. Optimize configuration
-npm run cli test data.csv --mode parallel --batch-size 200 --omit-get
+npm run cli simulate data.csv --mode parallel --batch-size 200 --omit-get
 ```
 
 #### Memory Issues
@@ -997,10 +1088,10 @@ npm run cli test data.csv --mode parallel --batch-size 200 --omit-get
 # Solutions:
 
 # 1. Use sequential processing
-npm run cli test data.csv --mode sequential
+npm run cli simulate data.csv --mode sequential
 
 # 2. Reduce batch size
-npm run cli test data.csv --batch-size 25
+npm run cli simulate data.csv --batch-size 25
 
 # 3. Process in smaller chunks
 split -l 1000 large-file.csv chunk_
@@ -1015,10 +1106,10 @@ done
 # Solutions:
 
 # 1. Use sequential processing
-npm run cli test data.csv --mode sequential
+npm run cli simulate data.csv --mode sequential
 
 # 2. Reduce batch size
-npm run cli test data.csv --batch-size 10
+npm run cli simulate data.csv --batch-size 10
 
 # 3. Add delays between requests (modify code if needed)
 # 4. Check Strapi rate limiting configuration
@@ -1062,10 +1153,10 @@ npm run cli test data.csv --batch-size 10
 
 ```bash
 # Enable debug mode for detailed logging
-DEBUG=true npm run cli test data.csv
+DEBUG=true npm run cli simulate data.csv
 
-# Enable verbose logging for specific operations
-DEBUG=true npm run cli dump --csv-file data.csv
+# Enable verbose logging for database operations
+DEBUG=true npm run cli dump
 
 # Check detailed error information
 cat error-report-*.csv  # Review error details

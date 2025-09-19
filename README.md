@@ -1,11 +1,11 @@
-# Apilados Pipeline - Data Migration System
+# Apilados Pipeline - Data Processing System
 
-A comprehensive data migration system built with AWS CDK and TypeScript, featuring a unified lambda function for processing participant data from CSV files. The system supports both local testing and AWS deployment for S3-triggered processing.
+A comprehensive data processing system built with AWS CDK and TypeScript, featuring a unified lambda function for processing participant data from CSV files. The system supports both local testing and AWS deployment for S3-triggered processing.
 
 ## Architecture Overview
 
 The system consists of:
-- **Ingest Lambda**: Unified data processing function that handles CSV migration
+- **Ingest Lambda**: Unified data processing function that handles CSV event simulation
 - **S3 Integration**: Automatic processing of CSV files uploaded to S3
 - **Local Testing Framework**: Complete local development and testing capabilities
 - **Error Reporting**: Comprehensive error handling with CSV report generation
@@ -13,7 +13,7 @@ The system consists of:
 ## Key Features
 
 - **Dual Execution Modes**: Supports both local testing and AWS S3 event processing
-- **Database Dump Integration**: Create PostgreSQL database backups with optional migration execution
+- **Database Dump Integration**: Create PostgreSQL database backups for local development
 - **Enhanced CCTs Handling**: Automatic detection of local CCTs data with S3 fallback for production
 - **Three-Phase Processing**: Analysis, pre-loading, and batch processing for optimal performance
 - **Comprehensive Error Handling**: Detailed error logging and CSV report generation
@@ -40,6 +40,34 @@ The system consists of:
    ```bash
    npm run cli quick
    ```
+
+### Production Simulation Workflow
+
+The system includes a complete workflow to simulate production locally:
+
+1. **Validate Setup**
+   ```bash
+   cd lambda/ingest
+   npm run cli validate-dump
+   ```
+
+2. **Run Complete Simulation**
+   ```bash
+   # Option A: Use existing dump + simulate events (recommended)
+   ./restore-dump.sh  # Restore database with base data (seeders)
+   npm run cli simulate ./test-data/apilado-universal.csv  # Simulate S3 event processing
+   
+   # Option B: Create fresh dump + simulate events
+   npm run cli dump  # Create database backup
+   npm run cli simulate ./test-data/apilado-universal.csv  # Simulate S3 event processing
+   ```
+
+**How it works:**
+- **Database dump** (`strapi_db_2025-06-28.dump`) = Production database with base data (seeders)
+- **Event CSV** (`apilado-universal.csv`) = CSV file that simulates S3 upload event
+- **CCTs CSV** (`ccts_export.csv`) = Optional performance optimization data
+
+This simulates the production lambda that processes CSV files uploaded to S3 against an existing database.
 
 ### Database Dump Setup (Optional)
 
@@ -100,6 +128,7 @@ For database backup functionality, additional setup is required:
 
 ## Documentation
 
+- **[CLI Migration Guide](CLI_MIGRATION_GUIDE.md)** - Guide for migrating from old CLI command patterns
 - **[Local Testing Guide](lambda/ingest/LOCAL_TESTING.md)** - Complete guide for local development and testing
 - **[Environment Variables](lambda/ingest/ENVIRONMENT_VARIABLES.md)** - Configuration reference
 - **[Build Configuration](lambda/ingest/BUILD_CONFIGURATION.md)** - Build and deployment setup
@@ -118,14 +147,11 @@ npm run cli validate
 # Test with sample data
 npm run cli quick
 
-# Test with your CSV file
-npm run cli test ./data/participations.csv --mode parallel
+# Simulate S3 event with your CSV file
+npm run cli simulate ./data/participations.csv --mode parallel
 
-# Create database dump and run migration
-npm run cli dump --csv-file ./data/participations.csv
-
-# Create database dump only
-npm run cli dump --dump-only --compress
+# Create database dump
+npm run cli dump --compress
 ```
 
 ### Programmatic Usage
@@ -145,17 +171,22 @@ console.log(`Processed ${result.successCount} records successfully`);
 ```bash
 cd lambda/ingest
 
-# Interactive dump (prompts for options)
+# Create database backup
 npm run cli dump
 
-# Create compressed backup only
-npm run cli dump --dump-only --compress --output ./backups
+# Create compressed backup with custom output
+npm run cli dump --compress --output ./backups
+```
 
-# Dump database and run migration
-npm run cli dump --csv-file ./data/participations.csv --mode parallel
+### S3 Event Simulation
+```bash
+cd lambda/ingest
 
-# Dump with custom CCTs file
-npm run cli dump --csv-file ./data/participations.csv --ccts ./data/ccts.csv
+# Simulate S3 event with CSV file
+npm run cli simulate ./data/participations.csv --mode parallel
+
+# Simulate with custom CCTs file for performance optimization
+npm run cli simulate ./data/participations.csv --ccts ./data/ccts.csv
 ```
 
 ### AWS S3 Processing
@@ -177,14 +208,14 @@ The system automatically detects and uses CCTs data from multiple sources:
 - **Optional**: Migration continues without CCTs data if not available
 
 ```bash
-# Auto-detection (uses ./ccts_export.csv if available)
-npm run cli test ./data/participations.csv
+# Auto-detection (uses ./ccts_export.csv if available for performance optimization)
+npm run cli simulate ./data/participations.csv
 
-# Manual CCTs file
-npm run cli test ./data/participations.csv --ccts ./data/custom-ccts.csv
+# Manual CCTs file for performance optimization
+npm run cli simulate ./data/participations.csv --ccts ./data/custom-ccts.csv
 
-# Disable CCTs
-npm run cli test ./data/participations.csv --no-auto-ccts
+# Disable CCTs performance optimization
+npm run cli simulate ./data/participations.csv --no-auto-ccts
 ```
 
 ## Migration from migrator.js
@@ -192,8 +223,8 @@ npm run cli test ./data/participations.csv --no-auto-ccts
 The original `migrator.js` functionality has been fully integrated into the lambda function. Key improvements:
 
 - **Unified Architecture**: Single lambda function handles both local and AWS processing
-- **Database Dump Integration**: Create backups before migrations with PostgreSQL support
-- **Enhanced CCTs Handling**: Automatic local/S3 CCTs detection and processing
+- **Separated Concerns**: Clear separation between database dumps and S3 event simulation
+- **Enhanced CCTs Handling**: CCTs files now treated as optional performance optimization
 - **Enhanced Error Handling**: Comprehensive error reporting with CSV generation
 - **Better Testing**: Complete local testing framework with CLI tools
 - **Type Safety**: Full TypeScript implementation with proper type definitions
@@ -221,12 +252,10 @@ npm run test:coverage # Run tests with coverage
 # Local Testing
 npm run cli validate  # Validate environment
 npm run cli quick     # Quick test with sample data
-npm run cli test <csv-file> # Test with specific CSV file
+npm run cli simulate <csv-file> # Simulate S3 event with CSV file
 
 # Database Operations
-npm run cli dump      # Interactive database dump
-npm run cli dump --dump-only # Create backup only
-npm run cli dump --csv-file <file> # Dump and migrate
+npm run cli dump      # Create database backup
 ```
 
 ## Environment Configuration
