@@ -20,11 +20,11 @@ describe('CLI Dump Command Integration', () => {
 
     child.on('close', (code) => {
       expect(code).toBe(0);
-      expect(output).toContain('Create database dump with optional migration run');
-      expect(output).toContain('--dump-only');
+      expect(output).toContain('Create database backup');
       expect(output).toContain('--compress');
       expect(output).toContain('--output');
-      expect(output).toContain('--csv-file');
+      expect(output).not.toContain('--dump-only');
+      expect(output).not.toContain('--csv-file');
       done();
     });
   });
@@ -59,12 +59,11 @@ describe('CLI Dump Command Integration', () => {
 
     child.on('close', (code) => {
       expect(code).toBe(0);
-      expect(output).toContain('Create database dump (interactive)');
+      expect(output).toContain('Create database backup');
       expect(output).toContain('migration-cli dump');
-      expect(output).toContain('Create database dump only');
-      expect(output).toContain('Create compressed database dump');
-      expect(output).toContain('Dump database and run migration');
+      expect(output).toContain('Create compressed database backup');
       expect(output).toContain('DATABASE_HOST, DATABASE_PORT, DATABASE_NAME');
+      expect(output).not.toContain('Dump database and run migration');
       done();
     });
   });
@@ -82,7 +81,7 @@ describe('CLI Dump Command Integration', () => {
     child.on('close', (code) => {
       expect(code).toBe(0);
       expect(output).toContain('dump [options]');
-      expect(output).toContain('Create database dump with optional migration run');
+      expect(output).toContain('Create database backup');
       done();
     });
   });

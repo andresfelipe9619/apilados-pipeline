@@ -99,11 +99,11 @@ describe("Enhanced Environment Detection and Validation", () => {
   });
 
   describe("validateEnvironmentForOperation", () => {
-    test("should validate migration operation requirements", () => {
+    test("should validate event simulation operation requirements", () => {
       process.env.STRAPI_BASE_URL = "https://api.example.com";
       process.env.STRAPI_TOKEN = "test-token";
       
-      const result = config.validateEnvironmentForOperation("migration");
+      const result = config.validateEnvironmentForOperation("simulation");
       
       expect(result.environmentType).toBeDefined();
       expect(result.operationSupported).toBe(true);

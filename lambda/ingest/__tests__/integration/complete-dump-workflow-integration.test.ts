@@ -117,7 +117,6 @@ describe('Complete Dump Workflow Integration Tests', () => {
         outputPath: testDir,
         timestamp: false,
         compress: false,
-        dumpOnly: true
       };
 
       const progressMessages: string[] = [];
@@ -170,7 +169,6 @@ describe('Complete Dump Workflow Integration Tests', () => {
         outputPath: testDir,
         timestamp: false,
         compress: false,
-        dumpOnly: true
       };
 
       const result = await dumper.createDump(dumpOptions);
@@ -227,7 +225,6 @@ describe('Complete Dump Workflow Integration Tests', () => {
         outputPath: testDir,
         timestamp: false,
         compress: false,
-        dumpOnly: true
       };
 
       const result = await dumper.createDump(dumpOptions);
@@ -277,7 +274,6 @@ describe('Complete Dump Workflow Integration Tests', () => {
         outputPath: nonExistentDir,
         timestamp: false,
         compress: false,
-        dumpOnly: true
       };
 
       const result = await dumper.createDump(dumpOptions);
@@ -306,10 +302,8 @@ describe('Complete Dump Workflow Integration Tests', () => {
       const child = spawn('npx', [
         'ts-node', cliPath, 'dump', 
         '--output', testDir,
-        '--dump-only',
         '--compress',
-        '--no-timestamp',
-        '--csv-file', 'test.csv'
+        '--no-timestamp'
       ], {
         stdio: 'pipe',
         env: { ...process.env, NODE_ENV: 'test' }
@@ -362,7 +356,7 @@ describe('Complete Dump Workflow Integration Tests', () => {
       delete process.env.DATABASE_PASSWORD;
 
       const child = spawn('npx', [
-        'ts-node', cliPath, 'dump', '--dump-only'
+        'ts-node', cliPath, 'dump'
       ], {
         stdio: 'pipe',
         env: process.env
@@ -407,111 +401,9 @@ describe('Complete Dump Workflow Integration Tests', () => {
       }, 5000);
     });
 
-    it('should handle interactive prompts correctly in dump-and-run mode', (done) => {
-      // Create a test CSV file
-      const testCsvPath = join(testDir, 'test-participants.csv');
-      writeFileSync(testCsvPath, 'id,programa,implementacion\nTEST001,Test Program,Test Implementation');
 
-      const child = spawn('npx', [
-        'ts-node', cliPath, 'dump'
-      ], {
-        stdio: 'pipe',
-        env: process.env
-      });
 
-      if (!child.stdout || !child.stderr || !child.stdin) {
-        done();
-        return;
-      }
 
-      let output = '';
-      let prompted = false;
-
-      child.stdout.on('data', (data) => {
-        const dataStr = data.toString();
-        output += dataStr;
-        
-        // Respond to interactive prompts
-        if (dataStr.includes('What would you like to do?') && !prompted) {
-          prompted = true;
-          // Select "dump-only" option to avoid needing CSV file
-          child.stdin.write('\n'); // Select first option (dump-and-run)
-          setTimeout(() => {
-            child.stdin.write(`${testCsvPath}\n`); // Provide CSV file path
-          }, 100);
-        }
-      });
-
-      child.stderr.on('data', (data) => {
-        output += data.toString();
-      });
-
-      child.on('close', (code) => {
-        // Should show the interactive prompts
-        expect(output).toContain('Database Dump Utility');
-        done();
-      });
-
-      child.on('error', (error) => {
-        console.log('CLI spawn error:', error.message);
-        done();
-      });
-
-      setTimeout(() => {
-        if (!child.killed) {
-          child.kill();
-          done();
-        }
-      }, 8000);
-    });
-
-    it('should validate CSV file existence for dump-and-run mode', (done) => {
-      const nonExistentCsv = join(testDir, 'non-existent.csv');
-
-      const child = spawn('npx', [
-        'ts-node', cliPath, 'dump',
-        '--csv-file', nonExistentCsv
-      ], {
-        stdio: 'pipe',
-        env: process.env
-      });
-
-      if (!child.stdout || !child.stderr) {
-        done();
-        return;
-      }
-
-      let output = '';
-      let errorOutput = '';
-
-      child.stdout.on('data', (data) => {
-        output += data.toString();
-      });
-
-      child.stderr.on('data', (data) => {
-        errorOutput += data.toString();
-      });
-
-      child.on('close', (code) => {
-        const allOutput = output + errorOutput;
-        expect(allOutput).toContain('CSV file not found');
-        expect(allOutput).toContain(nonExistentCsv);
-        expect(code).not.toBe(0);
-        done();
-      });
-
-      child.on('error', (error) => {
-        console.log('CLI spawn error:', error.message);
-        done();
-      });
-
-      setTimeout(() => {
-        if (!child.killed) {
-          child.kill();
-          done();
-        }
-      }, 5000);
-    });
   });
 
   describe('Environment Detection and Configuration Loading', () => {
@@ -659,7 +551,6 @@ describe('Complete Dump Workflow Integration Tests', () => {
         outputPath: testDir,
         timestamp: false,
         compress: false,
-        dumpOnly: true
       };
 
       const result = await dumper.createDump(dumpOptions);
@@ -701,7 +592,6 @@ describe('Complete Dump Workflow Integration Tests', () => {
         outputPath: readOnlyDir,
         timestamp: false,
         compress: false,
-        dumpOnly: true
       };
 
       const result = await dumper.createDump(dumpOptions);
@@ -736,7 +626,6 @@ describe('Complete Dump Workflow Integration Tests', () => {
         outputPath: testDir,
         timestamp: false,
         compress: false,
-        dumpOnly: true
       };
 
       const result = await dumper.createDump(dumpOptions);
@@ -793,7 +682,6 @@ describe('Complete Dump Workflow Integration Tests', () => {
         outputPath: testDir,
         timestamp: false,
         compress: false,
-        dumpOnly: true
       };
 
       const result = await dumper.createDump(dumpOptions);
@@ -834,153 +722,5 @@ describe('Complete Dump Workflow Integration Tests', () => {
     });
   });
 
-  describe('Integration with Migration Pipeline', () => {
-    beforeEach(() => {
-      // Set up complete environment for migration integration
-      process.env.STRAPI_BASE_URL = 'http://localhost:1337';
-      process.env.STRAPI_TOKEN = 'test-token';
-      process.env.DATABASE_HOST = 'localhost';
-      process.env.DATABASE_PORT = '5432';
-      process.env.DATABASE_NAME = 'test_db';
-      process.env.DATABASE_USERNAME = 'test_user';
-      process.env.DATABASE_PASSWORD = 'test_pass';
-    });
 
-    it('should integrate dump and migration workflow', async () => {
-      // Create test CSV file
-      const testCsvPath = join(testDir, 'integration-test.csv');
-      const csvContent = `id,programa,implementacion,ciclo_escolar,periodo_de_implementacion,cct,nombre,email,edad,sexo
-INT001,Integration Program,Integration Implementation,2023,Test Period,CCT001,Test User,test@example.com,25,M`;
-      writeFileSync(testCsvPath, csvContent);
-
-      // Create test CCTs file
-      const testCctsPath = join(testDir, 'integration-ccts.csv');
-      const cctsContent = `id,clave
-1,CCT001`;
-      writeFileSync(testCctsPath, cctsContent);
-
-      // Clear any existing mocks
-      jest.clearAllMocks();
-
-      // Mock successful dump
-      jest.spyOn(require('child_process'), 'spawn').mockImplementation((...args: any[]) => {
-        const [command] = args;
-        if (command === 'pg_isready') {
-          return {
-            stdout: { on: jest.fn() },
-            stderr: { on: jest.fn() },
-            on: jest.fn((event, callback) => {
-              if (event === 'close') setTimeout(() => callback(0), 50);
-            })
-          };
-        } else if (command === 'pg_dump') {
-          return {
-            stdout: { on: jest.fn() },
-            stderr: { on: jest.fn() },
-            on: jest.fn((event, callback) => {
-              if (event === 'close') {
-                const dumpPath = join(testDir, 'test_db_dump.sql');
-                writeFileSync(dumpPath, 'INTEGRATION TEST DUMP');
-                setTimeout(() => callback(0), 100);
-              }
-            })
-          };
-        }
-        return jest.fn();
-      });
-
-      // Mock execSync for disk space check
-      jest.spyOn(require('child_process'), 'execSync').mockImplementation(() => {
-        return 'Filesystem      Size  Used Avail Use% Mounted on\n/dev/disk1     100G   50G   50G  50% /';
-      });
-
-      // Test the dump creation
-      const dumper = new DatabaseDumper();
-      const dumpOptions: DumpOptions = {
-        outputPath: testDir,
-        timestamp: false,
-        compress: false,
-        dumpOnly: true
-      };
-
-      const dumpResult = await dumper.createDump(dumpOptions);
-      expect(dumpResult.success).toBe(true);
-
-      // Test that we can prepare for migration (without actually running it due to no Strapi server)
-      const config: ProcessingConfig = {
-        processMode: 'sequential',
-        omitGet: false,
-        batchSize: 10,
-        chunkSize: 50
-      };
-
-      // Verify CSV file is readable
-      expect(existsSync(testCsvPath)).toBe(true);
-      expect(existsSync(testCctsPath)).toBe(true);
-
-      const csvData = readFileSync(testCsvPath, 'utf8');
-      expect(csvData).toContain('Integration Program');
-      expect(csvData).toContain('test@example.com');
-    });
-
-    it('should handle migration failures after successful dump', async () => {
-      // Create test CSV with invalid data
-      const testCsvPath = join(testDir, 'invalid-test.csv');
-      const csvContent = `id,programa,implementacion
-INVALID,,`; // Missing required fields
-      writeFileSync(testCsvPath, csvContent);
-
-      // Clear any existing mocks
-      jest.clearAllMocks();
-
-      // Mock successful dump
-      jest.spyOn(require('child_process'), 'spawn').mockImplementation((...args: any[]) => {
-        const [command] = args;
-        if (command === 'pg_isready') {
-          return {
-            stdout: { on: jest.fn() },
-            stderr: { on: jest.fn() },
-            on: jest.fn((event, callback) => {
-              if (event === 'close') setTimeout(() => callback(0), 50);
-            })
-          };
-        } else if (command === 'pg_dump') {
-          return {
-            stdout: { on: jest.fn() },
-            stderr: { on: jest.fn() },
-            on: jest.fn((event, callback) => {
-              if (event === 'close') {
-                const dumpPath = join(testDir, 'test_db_dump.sql');
-                writeFileSync(dumpPath, 'SUCCESSFUL DUMP BEFORE MIGRATION FAILURE');
-                setTimeout(() => callback(0), 100);
-              }
-            })
-          };
-        }
-        return jest.fn();
-      });
-
-      // Mock execSync for disk space check
-      jest.spyOn(require('child_process'), 'execSync').mockImplementation(() => {
-        return 'Filesystem      Size  Used Avail Use% Mounted on\n/dev/disk1     100G   50G   50G  50% /';
-      });
-
-      const dumper = new DatabaseDumper();
-      const dumpOptions: DumpOptions = {
-        outputPath: testDir,
-        timestamp: false,
-        compress: false,
-        dumpOnly: true
-      };
-
-      // Dump should succeed
-      const dumpResult = await dumper.createDump(dumpOptions);
-      expect(dumpResult.success).toBe(true);
-      expect(existsSync(dumpResult.filePath)).toBe(true);
-
-      // Migration would fail, but dump file should remain
-      const dumpContent = readFileSync(dumpResult.filePath, 'utf8');
-      expect(dumpContent).toBe('SUCCESSFUL DUMP BEFORE MIGRATION FAILURE');
-    });
-  });
 });
