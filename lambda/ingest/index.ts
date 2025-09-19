@@ -9,6 +9,7 @@ import {
   ExecutionMode,
   LocalConfig,
   MigrationResult,
+  SimulationResult,
   FileInputHandler,
   ErrorReporter,
 } from "./types";
@@ -48,7 +49,7 @@ let cacheManager: CacheManager;
 let entityManager: EntityManager;
 
 /**
- * Enhanced migration engine that integrates all processing phases
+ * Enhanced processing engine that integrates all processing phases
  * Supports both AWS S3 events and local file processing
  */
 class MigrationEngine {
@@ -73,14 +74,14 @@ class MigrationEngine {
   }
 
   /**
-   * Execute the complete three-phase migration process
+   * Execute the complete three-phase data processing
    */
   async processData(
     participationsCsv: Readable,
     cctsCsv?: Readable
-  ): Promise<MigrationResult> {
+  ): Promise<SimulationResult> {
     const startTime = Date.now();
-    console.log("🚀 Starting three-phase migration process");
+    console.log("🚀 Starting three-phase S3 event simulation process");
 
     try {
       // Phase 1: CSV Analysis
@@ -114,11 +115,11 @@ class MigrationEngine {
         errorCsvPath = await this.errorReporter.saveErrorReport();
       }
 
-      const result: MigrationResult = {
+      const result: SimulationResult = {
+        totalRecords: batchResult.totalRecords,
         successCount: batchResult.successCount,
         errorCount: batchResult.errorCount,
         processingTime,
-        totalRecords: records.length,
         errorCsvPath,
       };
 
@@ -143,7 +144,7 @@ class MigrationEngine {
 }
 
 /**
- * Initialize configuration and components for migration processing
+ * Initialize configuration and components for data processing
  */
 function initializeConfiguration(
   executionMode: ExecutionMode,
@@ -223,7 +224,7 @@ function initializeConfiguration(
 }
 
 /**
- * Enhanced S3 handler with execution mode detection and migration engine integration
+ * Enhanced S3 handler with execution mode detection and processing engine integration
  * Maintains backward compatibility while adding new functionality
  * Supports both AWS S3 events and local execution via environment variables
  */
@@ -272,7 +273,7 @@ export const handler: S3Handler = async (event: S3Event): Promise<void> => {
       `📁 File input handler created for ${fileHandler.getExecutionMode()} mode`
     );
 
-    // Create migration engine
+    // Create processing engine
     const migrationEngine = new MigrationEngine(
       api,
       cacheManager,
@@ -283,9 +284,9 @@ export const handler: S3Handler = async (event: S3Event): Promise<void> => {
 
     // Get CSV streams from file handler
     const participationsCsv = await fileHandler.getParticipationsCsv();
-    const cctsCsv = await fileHandler.getCctsCsv();
+    const cctsCsv = await fileHandler.getCctsCsv(); // Optional performance optimization
 
-    // Execute migration process
+    // Execute data processing
     const result = await migrationEngine.processData(
       participationsCsv,
       cctsCsv || undefined
@@ -329,12 +330,12 @@ export async function runLocal(
   cctsCsvPath?: string,
   outputPath?: string,
   configOverrides?: Partial<ProcessingConfig>
-): Promise<MigrationResult> {
-  console.log("🚀 Starting local migrator execution");
+): Promise<SimulationResult> {
+  console.log("🚀 Starting local S3 event simulation execution");
   const startTime = Date.now();
 
   try {
-    const localConfig: LocalConfig = {
+    const localConfig: any = {
       participationsCsvPath,
       cctsCsvPath,
       outputPath,
@@ -360,7 +361,7 @@ export async function runLocal(
       `📁 File input handler created for ${fileHandler.getExecutionMode()} mode`
     );
 
-    // Create migration engine
+    // Create simulation engine
     const migrationEngine = new MigrationEngine(
       api,
       cacheManager,
@@ -371,9 +372,9 @@ export async function runLocal(
 
     // Get CSV streams from file handler
     const participationsCsv = await fileHandler.getParticipationsCsv();
-    const cctsCsv = await fileHandler.getCctsCsv();
+    const cctsCsv = await fileHandler.getCctsCsv(); // Optional performance optimization
 
-    // Execute migration process
+    // Execute data processing
     const result = await migrationEngine.processData(
       participationsCsv,
       cctsCsv || undefined

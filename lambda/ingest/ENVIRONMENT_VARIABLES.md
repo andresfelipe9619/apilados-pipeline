@@ -57,14 +57,14 @@ This document describes all environment variables supported by the enhanced inge
 
 #### `OUTPUT_PATH`
 - **Description**: Path for error report output in local mode
-- **Default**: `migration-errors.csv`
+- **Default**: `simulation-errors.csv`
 - **Example**: `OUTPUT_PATH=reports/errors.csv`
 
 ### AWS-Specific Environment Variables
 
 #### `BUCKET_NAME`
 - **Description**: S3 bucket name for error report uploads in AWS mode
-- **Example**: `BUCKET_NAME=my-migration-bucket`
+- **Example**: `BUCKET_NAME=my-processing-bucket`
 - **Note**: Automatically set by CDK deployment
 
 #### `S3_KEY_PREFIX`
@@ -97,7 +97,7 @@ BATCH_SIZE=100
 # Local mode (migrator.js compatibility)
 PARTICIPATIONS_CSV_FILE=test-data/sample.csv
 CCTS_CSV_FILE=test-data/ccts.csv
-OUTPUT_PATH=reports/migration-errors.csv
+OUTPUT_PATH=reports/simulation-errors.csv
 ```
 
 ### AWS Lambda Environment
@@ -113,7 +113,7 @@ BATCH_SIZE=100
 CHUNK_SIZE=150
 
 # AWS-specific (set by CDK)
-BUCKET_NAME=production-migration-bucket
+BUCKET_NAME=production-processing-bucket
 S3_KEY_PREFIX=uploads/
 ```
 

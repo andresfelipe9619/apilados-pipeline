@@ -1,5 +1,5 @@
 /**
- * Error reporting and logging system for migration processing
+ * Error reporting and logging system for S3 event simulation processing
  * Captures detailed error information and generates CSV reports
  */
 
@@ -85,7 +85,7 @@ export class MigrationErrorReporter implements ErrorReporter {
     const summary = this.getErrorSummary();
 
     // Add summary header
-    csvLines.push("# Migration Error Report");
+    csvLines.push("# S3 Event Simulation Error Report");
     csvLines.push(`# Generated: ${timestamp}`);
     csvLines.push(`# Total Errors: ${summary.totalErrors}`);
     csvLines.push(

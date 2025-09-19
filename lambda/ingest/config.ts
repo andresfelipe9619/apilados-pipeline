@@ -17,6 +17,8 @@ import {
   EnhancedEnvironmentConfig,
   CCTsConfig,
   DatabaseConfig,
+  DumpConfig,
+  EventSimulationConfig,
 } from "./types";
 
 /**
@@ -315,6 +317,7 @@ export function loadEnhancedEnvironmentConfig(): EnhancedEnvironmentConfig {
   // Configure CCTs based on environment
   const cctsConfig: CCTsConfig = {
     environment: environmentType,
+    isPerformanceOptimization: true,
   };
 
   if (environmentType === "local") {
@@ -534,19 +537,8 @@ export class DefaultConfigValidator implements ConfigValidator {
     const errors: string[] = [];
     const warnings: string[] = [];
 
-    if (!config.participationsCsvPath) {
-      errors.push("participationsCsvPath is required for local execution");
-    } else if (!existsSync(config.participationsCsvPath)) {
-      errors.push(
-        `Participations CSV file not found: ${config.participationsCsvPath}`,
-      );
-    }
-
-    if (config.cctsCsvPath && !existsSync(config.cctsCsvPath)) {
-      warnings.push(
-        `CCTs CSV file not found: ${config.cctsCsvPath} (will continue without CCTs)`,
-      );
-    }
+    // LocalConfig is now focused on dump operations only
+    // CSV-related validation moved to EventSimulationConfig
 
     if (config.outputPath) {
       const outputDir = config.outputPath.substring(
@@ -604,6 +596,34 @@ export class DefaultConfigValidator implements ConfigValidator {
     } catch {
       return false;
     }
+  }
+
+  validateDumpConfig(config: Partial<DumpConfig>): ValidationResult {
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    if (!config.outputPath) {
+      errors.push("Output path is required for dump operations");
+    }
+
+    return { isValid: errors.length === 0, errors, warnings };
+  }
+
+  validateEventSimulationConfig(config: Partial<EventSimulationConfig>): ValidationResult {
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    if (!config.csvFilePath) {
+      errors.push("CSV file path is required for event simulation");
+    } else if (!existsSync(config.csvFilePath)) {
+      errors.push(`CSV event file not found: ${config.csvFilePath}`);
+    }
+
+    if (config.cctsFilePath && !existsSync(config.cctsFilePath)) {
+      warnings.push(`CCTs performance optimization file not found: ${config.cctsFilePath} (will continue without performance optimization)`);
+    }
+
+    return { isValid: errors.length === 0, errors, warnings };
   }
 }
 
@@ -847,16 +867,11 @@ export function createLocalConfigFromEnv(): LocalConfig | null {
     loadDotEnv();
   }
 
-  const participationsCsvPath = process.env.PARTICIPATIONS_CSV_FILE;
-
-  if (!participationsCsvPath) {
-    return null; // No local config available from environment
-  }
+  // LocalConfig is now focused on dump operations
+  // Always return a config for local operations
 
   return {
-    participationsCsvPath,
-    cctsCsvPath: process.env.CCTS_CSV_FILE,
-    outputPath: process.env.OUTPUT_PATH || "migration-errors.csv",
+    outputPath: process.env.OUTPUT_PATH || "./dumps",
   };
 }
 
@@ -889,7 +904,7 @@ export function getRequiredDatabaseEnvironmentVariables(): string[] {
 
 /**
  * Validates environment configuration for specific operations
- * @param operation - The operation to validate for ('migration', 'dump', 'all')
+ * @param operation - The operation to validate for ('simulation', 'dump', 'all')
  * @param environmentType - Optional environment type (will be detected if not provided)
  */
 export function validateEnvironmentForOperation(

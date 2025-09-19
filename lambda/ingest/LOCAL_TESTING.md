@@ -1,6 +1,6 @@
 # Local Testing Framework
 
-This document describes how to use the local testing framework for the migration lambda. The framework allows you to test the migration functionality locally with CSV files before deploying to AWS.
+This document describes how to use the local testing framework for the ingest lambda. The framework allows you to simulate S3 event processing locally with CSV files before deploying to AWS.
 
 ## Quick Start
 
@@ -70,11 +70,11 @@ npm run cli setup --dir my-test-env
 # Quick validation test with generated data
 npm run cli quick
 
-# Test with your CSV file
-npm run cli test ./data/participations.csv
+# Simulate S3 event with your CSV file
+npm run cli simulate ./data/participations.csv
 
-# Test with custom configuration
-npm run cli test ./data/participations.csv \
+# Simulate with custom configuration
+npm run cli simulate ./data/participations.csv \
   --mode sequential \
   --omit-get \
   --batch-size 50 \
@@ -180,7 +180,7 @@ Optional columns:
 - Use for debugging or when API has rate limits
 
 ```bash
-npm run cli test data.csv --mode sequential
+npm run cli simulate data.csv --mode sequential
 ```
 
 ### Parallel Mode
@@ -190,7 +190,7 @@ npm run cli test data.csv --mode sequential
 - Use for performance testing
 
 ```bash
-npm run cli test data.csv --mode parallel --batch-size 50
+npm run cli simulate data.csv --mode parallel --batch-size 50
 ```
 
 ## Performance Optimization
@@ -265,7 +265,7 @@ When errors occur, an error report CSV is generated with:
 ### Debug Mode
 Enable verbose logging:
 ```bash
-DEBUG=true npm run cli test data.csv
+DEBUG=true npm run cli simulate data.csv
 ```
 
 ## Integration with Development Workflow
@@ -278,11 +278,11 @@ npm run cli validate
 # 2. Test with sample data
 npm run cli quick
 
-# 3. Test with production-like data
-npm run cli test production-sample.csv --mode parallel
+# 3. Simulate S3 events with production-like data
+npm run cli simulate production-sample.csv --mode parallel
 
 # 4. Performance test
-npm run cli test large-dataset.csv --batch-size 200
+npm run cli simulate large-dataset.csv --batch-size 200
 ```
 
 ### Continuous Integration
@@ -298,7 +298,7 @@ npm run cli quick || exit 1
 npm run dev-setup
 
 # Daily development
-npm run cli test my-changes.csv --omit-get --batch-size 10
+npm run cli simulate my-changes.csv --omit-get --batch-size 10
 ```
 
 ## Examples
@@ -320,15 +320,15 @@ npx ts-node examples/local-testing-example.ts
 ### LocalTestRunner Interface
 ```typescript
 interface LocalTestRunner {
-  runWithCsv(csvPath: string, config?: ProcessingConfig): Promise<MigrationResult>;
+  runWithCsv(csvPath: string, config?: ProcessingConfig): Promise<SimulationResult>;
   validateEnvironment(): boolean;
   generateTestReport(): TestReport;
 }
 ```
 
-### MigrationResult Interface
+### SimulationResult Interface
 ```typescript
-interface MigrationResult {
+interface SimulationResult {
   successCount: number;
   errorCount: number;
   processingTime: number;

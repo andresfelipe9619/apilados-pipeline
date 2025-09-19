@@ -9,6 +9,7 @@ import {
   CsvRow,
   ErrorRecord,
   MigrationResult,
+  SimulationResult,
   ParticipantCsvRow,
   ProcessingConfig,
   ProcessingStats,
@@ -617,7 +618,7 @@ export class BatchProcessingPhase {
    */
   async executeBatchProcessing(
     records: ParticipantCsvRow[],
-  ): Promise<MigrationResult> {
+  ): Promise<SimulationResult> {
     console.log(
       `\n--- PHASE 3: Processing ${records.length} participants in batches of ${this.processingConfig.batchSize} ---`,
     );
@@ -681,10 +682,10 @@ export class BatchProcessingPhase {
       this.stats.errorCount = errorCount;
 
       return {
+        totalRecords: records.length,
         successCount,
         errorCount,
         processingTime: this.stats.endTime - this.stats.startTime,
-        totalRecords: records.length,
       };
     } catch (error) {
       console.error("[ERROR] Batch processing failed:", formatError(error));
@@ -1164,7 +1165,7 @@ export class BatchProcessingPhase {
 } /**
  *
  Main Three-Phase Processing Pipeline
- * Orchestrates the complete migration process from CSV analysis to participant processing
+ * Orchestrates the complete data processing from CSV analysis to participant processing
  */
 export class ThreePhaseProcessingPipeline {
   private api: AxiosInstance;
@@ -1190,7 +1191,7 @@ export class ThreePhaseProcessingPipeline {
   async executeFullPipeline(
     participationsCsv: Readable,
     cctsCsv?: Readable,
-  ): Promise<MigrationResult> {
+  ): Promise<SimulationResult> {
     console.log("🚀 Starting Three-Phase Processing Pipeline");
     console.time("Total Migration Time");
 

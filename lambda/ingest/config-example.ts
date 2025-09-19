@@ -51,8 +51,13 @@ export function exampleAwsExecution(event: S3Event) {
 export function exampleLocalExecution() {
   console.log("=== Local Development Execution Example ===");
   
-  // Define local configuration
+  // Define local configuration (for dump operations)
   const localConfig: LocalConfig = {
+    outputPath: "./output/dumps"
+  };
+  
+  // Define event simulation configuration (for CSV processing)
+  const eventSimConfig = {
     participationsCsvPath: "./test-data/sample.csv",
     cctsCsvPath: "./test-data/ccts.csv",
     outputPath: "./output/results.csv"
@@ -113,8 +118,7 @@ export function exampleConfigurationValidation() {
   // Example 3: Invalid local file paths
   console.log("\n3. Invalid local file paths:");
   const invalidLocalConfig: LocalConfig = {
-    participationsCsvPath: "./nonexistent/file.csv",
-    cctsCsvPath: "./nonexistent/ccts.csv"
+    outputPath: "./nonexistent/output"
   };
   
   const invalidLocalValidation = validateConfiguration("local", validResult.envConfig, invalidLocalConfig);

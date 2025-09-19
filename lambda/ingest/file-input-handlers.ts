@@ -136,9 +136,14 @@ export class LocalFileInputHandler implements FileInputHandler {
   private participationsCsvPath: string;
   private cctsCsvPath?: string;
 
-  constructor(config: LocalConfig) {
-    this.participationsCsvPath = config.participationsCsvPath;
-    this.cctsCsvPath = config.cctsCsvPath;
+  constructor(config: LocalConfig | { participationsCsvPath: string; cctsCsvPath?: string }) {
+    // Handle both old LocalConfig (with CSV paths) and new LocalConfig (without CSV paths)
+    if ('participationsCsvPath' in config) {
+      this.participationsCsvPath = config.participationsCsvPath;
+      this.cctsCsvPath = config.cctsCsvPath;
+    } else {
+      throw new Error("LocalFileInputHandler requires participationsCsvPath - use EventSimulationConfig instead");
+    }
 
     // Auto-detect ccts_export.csv from project root if no CCTs path specified
     if (!this.cctsCsvPath) {
@@ -362,11 +367,11 @@ export class FileInputHandlerFactory {
       if (event && event.Records && event.Records.length > 0) {
         console.log(`🏭 Creating S3FileInputHandler for AWS execution mode`);
         return new S3FileInputHandler(event);
-      } else if (localConfig && localConfig.participationsCsvPath) {
+      } else if (localConfig && 'participationsCsvPath' in localConfig) {
         console.log(
           `🏭 Creating LocalFileInputHandler for local execution mode`,
         );
-        return new LocalFileInputHandler(localConfig);
+        return new LocalFileInputHandler(localConfig as any);
       } else {
         throw new Error(
           "Unable to determine execution mode: neither S3 event nor local config provided",
@@ -392,7 +397,7 @@ export class FileInputHandlerFactory {
   ): ExecutionMode {
     if (event && event.Records && event.Records.length > 0) {
       return "aws";
-    } else if (localConfig && localConfig.participationsCsvPath) {
+    } else if (localConfig && 'participationsCsvPath' in localConfig) {
       return "local";
     } else {
       throw new Error(
@@ -439,10 +444,10 @@ export function createFileInputHandler(
       );
     }
 
-    if (localConfig && !localConfig.participationsCsvPath) {
+    if (localConfig && !('participationsCsvPath' in localConfig)) {
       throw new Error(
         "File input handler creation failed: Local config provided but missing participationsCsvPath. " +
-          "Please provide a valid path to the participations CSV file.",
+          "Please use EventSimulationConfig for CSV file processing.",
       );
     }
 
@@ -495,19 +500,25 @@ export function validateFileInputConfig(
 
   // Validate local config if provided
   if (localConfig) {
-    if (!localConfig.participationsCsvPath) {
-      errors.push("Local config provided but missing participationsCsvPath");
-    } else {
-      // Check if file exists (this is a warning since the file might be created later)
-      if (!existsSync(localConfig.participationsCsvPath)) {
-        warnings.push(
-          `Participations CSV file does not exist: ${localConfig.participationsCsvPath}`,
-        );
+    if ('participationsCsvPath' in localConfig) {
+      const csvConfig = localConfig as any;
+      if (!csvConfig.participationsCsvPath) {
+        errors.push("Local config provided but missing participationsCsvPath");
+      } else {
+        // Check if file exists (this is a warning since the file might be created later)
+        if (!existsSync(csvConfig.participationsCsvPath)) {
+          warnings.push(
+            `Participations CSV file does not exist: ${csvConfig.participationsCsvPath}`,
+          );
+        }
       }
-    }
 
-    if (localConfig.cctsCsvPath && !existsSync(localConfig.cctsCsvPath)) {
-      warnings.push(`CCTs CSV file does not exist: ${localConfig.cctsCsvPath}`);
+      if (csvConfig.cctsCsvPath && !existsSync(csvConfig.cctsCsvPath)) {
+        warnings.push(`CCTs CSV file does not exist: ${csvConfig.cctsCsvPath}`);
+      }
+    } else {
+      // New LocalConfig structure - no CSV validation needed
+      warnings.push("LocalConfig provided without CSV paths - use EventSimulationConfig for CSV processing");
     }
   }
 

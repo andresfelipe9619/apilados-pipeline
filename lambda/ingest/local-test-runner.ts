@@ -13,6 +13,7 @@ import {
   ProcessingConfig,
   EnvironmentConfig,
   MigrationResult,
+  SimulationResult,
   TestReport,
   LocalTestRunner,
   CsvRow,
@@ -35,7 +36,7 @@ import { EntityManager } from "./entities";
 
 /**
  * Local test runner implementation
- * Provides comprehensive local testing capabilities for the migration lambda
+ * Provides comprehensive local testing capabilities for S3 event simulation
  */
 export class MigrationLocalTestRunner implements LocalTestRunner {
   private envConfig: EnvironmentConfig;
@@ -59,18 +60,18 @@ export class MigrationLocalTestRunner implements LocalTestRunner {
   }
 
   /**
-   * Run migration with local CSV file
-   * @param csvPath - Path to the participations CSV file
+   * Run S3 event simulation with local CSV file
+   * @param csvPath - Path to the event CSV file
    * @param config - Optional processing configuration overrides
-   * @param cctsCsvPath - Optional path to CCTs CSV file
-   * @returns Migration result with statistics
+   * @param cctsCsvPath - Optional path to CCTs CSV file (performance optimization)
+   * @returns Simulation result with statistics
    */
   async runWithCsv(
     csvPath: string,
     config?: ProcessingConfig,
     cctsCsvPath?: string,
-  ): Promise<MigrationResult> {
-    console.log("🚀 Starting local migration test run");
+  ): Promise<SimulationResult> {
+    console.log("🚀 Starting local S3 event simulation run");
     console.log(`📁 CSV file: ${csvPath}`);
 
     this.startTime = Date.now();
@@ -81,8 +82,8 @@ export class MigrationLocalTestRunner implements LocalTestRunner {
         throw new Error("Environment validation failed - check configuration");
       }
 
-      // Create local configuration
-      const localConfig: LocalConfig = {
+      // Create local configuration for CSV processing
+      const localConfig: any = {
         participationsCsvPath: resolve(csvPath),
         cctsCsvPath: cctsCsvPath ? resolve(cctsCsvPath) : undefined,
         outputPath: join(process.cwd(), `migration-results-${Date.now()}.csv`),
@@ -162,11 +163,12 @@ export class MigrationLocalTestRunner implements LocalTestRunner {
         console.log(`📋 Error report saved: ${errorCsvPath}`);
       }
 
-      const finalResult: MigrationResult = {
-        ...result,
+      const finalResult: SimulationResult = {
+        totalRecords: records.length,
+        successCount: result.successCount,
+        errorCount: result.errorCount,
         processingTime,
         errorCsvPath,
-        totalRecords: records.length,
       };
 
       // Log final results
@@ -177,13 +179,13 @@ export class MigrationLocalTestRunner implements LocalTestRunner {
       this.endTime = Date.now();
       const errorMessage =
         error instanceof Error ? error.message : String(error);
-      console.error(`❌ Local test run failed: ${errorMessage}`);
+      console.error(`❌ Local S3 event simulation failed: ${errorMessage}`);
 
       return {
+        totalRecords: 0,
         successCount: 0,
         errorCount: 1,
         processingTime: this.endTime - this.startTime,
-        totalRecords: 0,
         errorCsvPath: undefined,
       };
     }
@@ -328,11 +330,11 @@ export class MigrationLocalTestRunner implements LocalTestRunner {
 
     // Load CCTs if available
     if (cctsCsv) {
-      console.log("   - Loading CCTs from CSV file");
+      console.log("   - Loading CCTs from CSV file (performance optimization)");
       const cctsCount = await this.loadCCTsFromCSV(cctsCsv, cacheManager);
-      console.log(`   - Loaded ${cctsCount} CCTs from CSV`);
+      console.log(`   - Loaded ${cctsCount} CCTs from CSV for performance optimization`);
     } else {
-      console.log("   - No CCTs CSV available, skipping CCTs loading");
+      console.log("   - No CCTs CSV available, skipping performance optimization");
     }
 
     // Pre-cache simple entities
@@ -343,8 +345,8 @@ export class MigrationLocalTestRunner implements LocalTestRunner {
   }
 
   /**
-   * Load CCTs from CSV stream
-   * @param cctsCsv - CCTs CSV stream
+   * Load CCTs from CSV stream for performance optimization
+   * @param cctsCsv - CCTs CSV stream (performance optimization data)
    * @param cacheManager - Cache manager instance
    * @returns Number of CCTs loaded
    */
@@ -377,7 +379,7 @@ export class MigrationLocalTestRunner implements LocalTestRunner {
           resolve(cctsCount);
         })
         .on("error", (error) => {
-          console.error(`   - Error loading CCTs from CSV: ${error.message}`);
+          console.error(`   - Error loading CCTs performance optimization data: ${error.message}`);
           reject(error);
         });
     });
@@ -596,10 +598,10 @@ export class MigrationLocalTestRunner implements LocalTestRunner {
 
   /**
    * Log final processing results
-   * @param result - Migration result
+   * @param result - Simulation result
    */
-  private logResults(result: MigrationResult): void {
-    console.log("\n📊 Migration Test Results:");
+  private logResults(result: SimulationResult): void {
+    console.log("\n📊 S3 Event Simulation Results:");
     console.log("=".repeat(50));
     console.log(`Total Records: ${result.totalRecords}`);
     console.log(`Successful: ${result.successCount}`);
@@ -629,16 +631,16 @@ export function createLocalTestRunner(): LocalTestRunner {
 
 /**
  * Convenience function to run a quick local test
- * @param csvPath - Path to CSV file
+ * @param csvPath - Path to event CSV file
  * @param config - Optional processing configuration
- * @param cctsCsvPath - Optional path to CCTs CSV file
- * @returns Migration result
+ * @param cctsCsvPath - Optional path to CCTs CSV file (performance optimization)
+ * @returns Simulation result
  */
 export async function runLocalTest(
   csvPath: string,
   config?: ProcessingConfig,
   cctsCsvPath?: string,
-): Promise<MigrationResult> {
+): Promise<SimulationResult> {
   const runner = createLocalTestRunner();
   return await runner.runWithCsv(csvPath, config, cctsCsvPath);
 }

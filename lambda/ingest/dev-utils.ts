@@ -373,7 +373,7 @@ export class DevUtils {
 
   /**
    * Run a quick validation test with sample data
-   * @param csvPath - Optional path to CSV file (will generate if not provided)
+   * @param csvPath - Optional path to event CSV file (will generate if not provided)
    * @returns Test result
    */
   async runQuickTest(csvPath?: string): Promise<TestReport> {
@@ -553,7 +553,7 @@ export class DevUtils {
    * @returns Path to created file
    */
   private async createEnvTemplate(filePath: string): Promise<string> {
-    const envTemplate = `# Migration Lambda Environment Configuration
+    const envTemplate = `# Ingest Lambda Environment Configuration
 # Copy this file to .env and fill in your actual values
 
 # Required: Strapi API Configuration
@@ -580,9 +580,9 @@ DEBUG=false
    * @returns Path to created file
    */
   private async createTestReadme(filePath: string): Promise<string> {
-    const readmeContent = `# Migration Lambda Test Environment
+    const readmeContent = `# Ingest Lambda Test Environment
 
-This directory contains sample data and configuration for testing the migration lambda locally.
+This directory contains sample data and configuration for testing S3 event simulation locally.
 
 ## Files
 
@@ -723,7 +723,7 @@ export function validateEnhancedEnv(): ValidationResult & {
  * @returns Formatted error message with recovery suggestions
  */
 export function formatOperationError(
-  operation: 'dump' | 'migration' | 'validation' | 'connection',
+  operation: 'dump' | 'migration' | 'simulation' | 'validation' | 'connection',
   error: string | Error,
   context?: {
     filePath?: string;
@@ -783,6 +783,26 @@ export function formatOperationError(
         formattedMessage += "      - Check Strapi content type configurations\n";
         formattedMessage += "      - Validate required fields and data types\n";
         formattedMessage += "      - Review CSV data format matches expected schema\n";
+      }
+      break;
+
+    case 'simulation':
+      formattedMessage += "🚀 S3 EVENT SIMULATION RECOVERY SUGGESTIONS:\n";
+      formattedMessage += "   1. Verify Strapi server is running and accessible\n";
+      formattedMessage += "   2. Check STRAPI_BASE_URL and STRAPI_TOKEN configuration\n";
+      formattedMessage += "   3. Validate CSV event file format and data quality\n";
+      formattedMessage += "   4. Try sequential processing: --mode sequential\n";
+      formattedMessage += "   5. Reduce batch size: --batch-size 10\n";
+      formattedMessage += "   6. Check network connectivity to Strapi server\n";
+      formattedMessage += "   7. Review Strapi server logs for detailed errors\n";
+      formattedMessage += "   8. Verify CSV file simulates expected S3 event structure\n";
+      
+      if (context?.successRate !== undefined && context.successRate < 50) {
+        formattedMessage += "   9. Low success rate indicates systematic issues:\n";
+        formattedMessage += "      - Check Strapi content type configurations\n";
+        formattedMessage += "      - Validate required fields and data types\n";
+        formattedMessage += "      - Review CSV data format matches expected schema\n";
+        formattedMessage += "      - Ensure event simulation matches production Lambda behavior\n";
       }
       break;
 
@@ -968,7 +988,7 @@ export async function setupTestEnvironment(
 
 /**
  * Run quick validation test
- * @param csvPath - Optional path to CSV file
+ * @param csvPath - Optional path to event CSV file
  * @returns Test report
  */
 export async function quickTest(csvPath?: string): Promise<TestReport> {

@@ -17,9 +17,20 @@ export type ExecutionMode = "aws" | "local";
 export type EnvironmentType = "local" | "production";
 
 export interface LocalConfig {
-  participationsCsvPath: string;
-  cctsCsvPath?: string;
   outputPath?: string;
+  // Removed CSV-related fields - these belong to EventSimulationConfig
+}
+
+// --- EVENT SIMULATION CONFIGURATION TYPES ---
+
+export interface EventSimulationConfig {
+  csvFilePath: string;           // Required - the event CSV file
+  processMode: "parallel" | "sequential";
+  omitGet: boolean;
+  batchSize: number;
+  chunkSize: number;
+  cctsFilePath?: string;         // Optional - CCTs CSV for performance optimization
+  autoDetectCcts: boolean;       // Auto-detect ccts_export.csv in project root
 }
 
 export interface ProcessingConfig {
@@ -43,6 +54,8 @@ export interface CCTsConfig {
   s3Bucket?: string;
   s3Key?: string;
   environment: EnvironmentType;
+  // CCTs file is optional performance optimization - processing continues without it
+  isPerformanceOptimization: boolean;
 }
 
 export interface EnhancedEnvironmentConfig {
@@ -140,6 +153,17 @@ export interface UniqueSets {
 
 // --- PROCESSING RESULT TYPES ---
 
+// --- RESULT INTERFACES ---
+
+export interface SimulationResult {
+  totalRecords: number;
+  successCount: number;
+  errorCount: number;
+  processingTime: number;
+  errorCsvPath?: string;
+}
+
+// Legacy interface for backward compatibility - will be removed in future versions
 export interface MigrationResult {
   successCount: number;
   errorCount: number;
@@ -156,11 +180,30 @@ export interface ProcessingStats {
   endTime?: number;
 }
 
+// --- ERROR HANDLING TYPES ---
+
 export interface ErrorRecord {
   participantId: string;
   email: string;
   error: string;
   rowNumber?: number;
+}
+
+export interface DumpErrorContext {
+  operation: 'dump';
+  filePath?: string;
+  duration?: number;
+  databaseHost?: string;
+  databaseName?: string;
+}
+
+export interface SimulationErrorContext {
+  operation: 'simulation';
+  csvFilePath?: string;
+  cctsFilePath?: string;
+  duration?: number;
+  recordsProcessed?: number;
+  strapiBaseUrl?: string;
 }
 
 // --- COMPONENT INTERFACES ---
@@ -217,9 +260,9 @@ export interface ErrorReporter {
 }
 
 /**
- * Core migration engine interface
+ * Core simulation engine interface (renamed from MigrationEngine)
  */
-export interface MigrationEngine {
+export interface SimulationEngine {
   /**
    * Process CSV data through the three-phase pipeline
    */
@@ -227,7 +270,7 @@ export interface MigrationEngine {
     participationsCsv: Readable,
     cctsCsv?: Readable,
     config?: ProcessingConfig
-  ): Promise<MigrationResult>;
+  ): Promise<SimulationResult>;
   
   /**
    * Initialize cache and pre-load entities
@@ -242,6 +285,20 @@ export interface MigrationEngine {
   /**
    * Get processing statistics
    */
+  getStats(): ProcessingStats;
+}
+
+/**
+ * Legacy interface for backward compatibility - will be removed in future versions
+ */
+export interface MigrationEngine {
+  processData(
+    participationsCsv: Readable,
+    cctsCsv?: Readable,
+    config?: ProcessingConfig
+  ): Promise<MigrationResult>;
+  initializeCache(): Promise<void>;
+  getCache(): CacheMaps;
   getStats(): ProcessingStats;
 }
 
@@ -369,7 +426,7 @@ export interface ExecutionModeDetector {
 // --- LOCAL TESTING TYPES ---
 
 export interface LocalTestRunner {
-  runWithCsv(csvPath: string, config?: ProcessingConfig, cctsCsvPath?: string): Promise<MigrationResult>;
+  runWithCsv(csvPath: string, config?: ProcessingConfig, cctsCsvPath?: string): Promise<SimulationResult>;
   validateEnvironment(): boolean;
   generateTestReport(): TestReport;
 }
@@ -377,7 +434,7 @@ export interface LocalTestRunner {
 export interface TestReport {
   environment: EnvironmentConfig;
   processingConfig: ProcessingConfig;
-  result: MigrationResult;
+  result: SimulationResult;
   errors: ErrorRecord[];
   timestamp: string;
 }
@@ -389,7 +446,7 @@ export interface LambdaContext {
   config: EnvironmentConfig;
   fileHandler: FileInputHandler;
   errorReporter: ErrorReporter;
-  migrationEngine: MigrationEngine;
+  simulationEngine: SimulationEngine;
 }
 
 // --- DATABASE DUMP TYPES ---
@@ -403,11 +460,18 @@ export interface DatabaseConfig {
   ssl?: boolean;
 }
 
+// --- DUMP CONFIGURATION TYPES ---
+
+export interface DumpConfig {
+  outputPath: string;
+  timestamp: boolean;
+  compress: boolean;
+}
+
 export interface DumpOptions {
   outputPath?: string;
   timestamp?: boolean;
   compress?: boolean;
-  dumpOnly?: boolean;
 }
 
 export interface DumpResult {
@@ -416,6 +480,7 @@ export interface DumpResult {
   fileSize: number;
   duration: number;
   error?: string;
+  // Focused on database backup operations only
 }
 
 export interface DatabaseConnectionTest {
@@ -439,4 +504,6 @@ export interface ConfigValidator {
   validateDatabaseConfig(config: Partial<DatabaseConfig>): ValidationResult;
   validateCCTsConfig(config: Partial<CCTsConfig>): ValidationResult;
   validateEnhancedEnvironmentConfig(config: Partial<EnhancedEnvironmentConfig>): ValidationResult;
+  validateDumpConfig(config: Partial<DumpConfig>): ValidationResult;
+  validateEventSimulationConfig(config: Partial<EventSimulationConfig>): ValidationResult;
 }
