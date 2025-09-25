@@ -6,22 +6,23 @@
  */
 
 import { Command } from "commander";
-const program = new Command();
 import { resolve } from "node:path";
 import { existsSync } from "node:fs";
-import { runLocalTest } from "./local-test-runner";
+import { runLocalTest } from "local-test-runner";
 import {
-  validateEnv,
-  generateTestData,
-  setupTestEnvironment,
-  quickTest,
-  showEnvironment,
-  formatOperationError,
   formatCompletionMessage,
+  formatOperationError,
+  generateTestData,
+  quickTest,
+  setupTestEnvironment,
+  showEnvironment,
+  validateEnv,
 } from "./dev-utils";
-import { ProcessingConfig, DumpOptions } from "./types";
+import { DumpOptions, ProcessingConfig } from "./types";
 import { DatabaseDumper } from "./database-dump";
 import { DumpWorkflowValidator } from "./validate-dump-workflow";
+
+const program = new Command();
 
 // CLI version
 const VERSION = "1.0.0";
@@ -29,7 +30,7 @@ const VERSION = "1.0.0";
 program
   .name("migration-cli")
   .description(
-    "Local development CLI for database backup operations and S3 event simulation"
+    "Local development CLI for database backup operations and S3 event simulation",
   )
   .version(VERSION);
 
@@ -50,7 +51,7 @@ program
     } else {
       const errorMessage = formatOperationError(
         "validation",
-        "Configuration validation failed"
+        "Configuration validation failed",
       );
       console.log(errorMessage);
       console.log("\n" + validation.configurationGuidance);
@@ -106,7 +107,7 @@ program
   .option(
     "-d, --dir <directory>",
     "Test environment directory",
-    "test-environment"
+    "test-environment",
   )
   .action(async (options: any) => {
     console.log(`🏗️  Setting up test environment in: ${options.dir}`);
@@ -144,7 +145,7 @@ program
       console.log(`   - Successful: ${report.result.successCount}`);
       console.log(`   - Errors: ${report.result.errorCount}`);
       console.log(
-        `   - Processing Time: ${(report.result.processingTime / 1000).toFixed(2)}s`
+        `   - Processing Time: ${(report.result.processingTime / 1000).toFixed(2)}s`,
       );
 
       if (report.result.errorCount > 0) {
@@ -184,11 +185,11 @@ program
       if (!pgToolsAvailable) {
         console.error("❌ PostgreSQL client tools not found.");
         console.error(
-          "Please install PostgreSQL client tools (pg_dump, pg_isready)"
+          "Please install PostgreSQL client tools (pg_dump, pg_isready)",
         );
         console.error("On macOS: brew install postgresql");
         console.error(
-          "On Ubuntu/Debian: sudo apt-get install postgresql-client"
+          "On Ubuntu/Debian: sudo apt-get install postgresql-client",
         );
         process.exit(1);
       }
@@ -208,7 +209,7 @@ program
       if (dbValidation.warnings.length > 0) {
         console.log("⚠️  Database configuration warnings:");
         dbValidation.warnings.forEach((warning) =>
-          console.log(`   - ${warning}`)
+          console.log(`   - ${warning}`),
         );
         console.log("");
       }
@@ -232,7 +233,7 @@ program
         process.exit(1);
       }
       console.log(
-        `✅ Database connection successful (${connectionTest.connectionTime}ms)`
+        `✅ Database connection successful (${connectionTest.connectionTime}ms)`,
       );
       console.log("");
 
@@ -257,7 +258,7 @@ program
         dumpOptions,
         (message: string) => {
           console.log(`   ${message}`);
-        }
+        },
       );
 
       console.log("=".repeat(50));
@@ -269,7 +270,7 @@ program
           {
             duration: dumpResult.duration,
             filePath: dumpOptions.outputPath,
-          }
+          },
         );
         console.error(errorMessage);
         process.exit(1);
@@ -279,14 +280,14 @@ program
         dumpResult.filePath,
         dumpResult.fileSize,
         dumpResult.duration,
-        "Database backup"
+        "Database backup",
       );
       console.log(completionMessage);
 
       console.log("✅ Database backup completed!");
       console.log(`   - File: ${dumpResult.filePath}`);
       console.log(
-        `   - Size: ${(dumpResult.fileSize / 1024 / 1024).toFixed(2)} MB`
+        `   - Size: ${(dumpResult.fileSize / 1024 / 1024).toFixed(2)} MB`,
       );
     } catch (error) {
       const errorMessage = formatOperationError("dump", error as Error);
@@ -299,60 +300,60 @@ program
 program
   .command("simulate")
   .description(
-    "Simulate S3 bucket event processing with CSV event file (replicates production Lambda behavior)"
+    "Simulate S3 bucket event processing with CSV event file (replicates production Lambda behavior)",
   )
   .argument(
     "<csv-file>",
-    "Path to CSV event file (REQUIRED - simulates S3 bucket event that triggers Lambda processing)"
+    "Path to CSV event file (REQUIRED - simulates S3 bucket event that triggers Lambda processing)",
   )
   .option(
     "-m, --mode <mode>",
     "Lambda event processing mode: parallel or sequential",
-    "parallel"
+    "parallel",
   )
   .option(
     "--omit-get",
     "Skip GET requests during Lambda event simulation for performance",
-    false
+    false,
   )
   .option(
     "-b, --batch-size <size>",
     "Batch size for Lambda event processing",
-    "100"
+    "100",
   )
   .option(
     "-c, --chunk-size <size>",
     "Chunk size for Lambda event processing",
-    "150"
+    "150",
   )
   .option(
     "--ccts <file>",
-    "Path to CCTs CSV file (optional performance optimization for Lambda processing)"
+    "Path to CCTs CSV file (optional performance optimization for Lambda processing)",
   )
   .option(
     "--no-auto-ccts",
-    "Disable automatic CCTs performance optimization detection"
+    "Disable automatic CCTs performance optimization detection",
   )
   .action(async (csvFile: string, options: any) => {
     // Validate CSV file argument is provided (Commander should handle this, but double-check)
     if (!csvFile || csvFile.trim() === "") {
       console.error(
-        "❌ Error: CSV event file path is required for S3 event simulation"
+        "❌ Error: CSV event file path is required for S3 event simulation",
       );
       console.error("");
       console.error("Usage: migration-cli simulate <csv-file> [options]");
       console.error("");
       console.error(
-        "The CSV file simulates an S3 bucket event that triggers Lambda processing."
+        "The CSV file simulates an S3 bucket event that triggers Lambda processing.",
       );
       console.error(
-        "This file contains the event data that would be processed in production."
+        "This file contains the event data that would be processed in production.",
       );
       console.error("");
       console.error("Examples:");
       console.error("  migration-cli simulate ./data/participations.csv");
       console.error(
-        "  migration-cli simulate ./test-data/sample.csv --mode sequential"
+        "  migration-cli simulate ./test-data/sample.csv --mode sequential",
       );
       console.error("");
       console.error("For help: migration-cli simulate --help");
@@ -360,7 +361,7 @@ program
     }
 
     console.log(
-      `🚀 Running S3 event simulation with CSV event file: ${csvFile}`
+      `🚀 Running S3 event simulation with CSV event file: ${csvFile}`,
     );
 
     // Validate CSV event file exists and is accessible
@@ -370,7 +371,7 @@ program
       console.error(`   File path: ${csvPath}`);
       console.error("");
       console.error(
-        "The CSV event file is required to simulate S3 bucket events that trigger"
+        "The CSV event file is required to simulate S3 bucket events that trigger",
       );
       console.error("Lambda processing in production. Please ensure:");
       console.error("");
@@ -396,7 +397,7 @@ program
       console.error(`   Access error: ${(error as Error).message}`);
       console.error("");
       console.error(
-        "Please ensure the file has proper read permissions and is not"
+        "Please ensure the file has proper read permissions and is not",
       );
       console.error("currently being used by another process.");
       process.exit(1);
@@ -412,10 +413,10 @@ program
         console.error(`   File path: ${csvPath}`);
         console.error("");
         console.error(
-          "The CSV event file must contain data to simulate S3 events."
+          "The CSV event file must contain data to simulate S3 events.",
         );
         console.error(
-          "An empty file cannot be used for Lambda event simulation."
+          "An empty file cannot be used for Lambda event simulation.",
         );
         process.exit(1);
       }
@@ -426,7 +427,7 @@ program
         console.error(`❌ Error: CSV event file appears to be invalid`);
         console.error(`   File path: ${csvPath}`);
         console.error(
-          `   Issue: File must contain at least a header row and one data row`
+          `   Issue: File must contain at least a header row and one data row`,
         );
         console.error("");
         console.error("The CSV event file should contain:");
@@ -440,7 +441,7 @@ program
       console.error(`   Read error: ${(error as Error).message}`);
       console.error("");
       console.error(
-        "Please ensure the file is a valid text file and not corrupted."
+        "Please ensure the file is a valid text file and not corrupted.",
       );
       process.exit(1);
     }
@@ -471,12 +472,12 @@ program
         // Auto-detect ccts_export.csv from project root
         const { join } = require("node:path");
         const { existsSync } = require("node:fs");
-        const cctsCsvPath = join(process.cwd(), "ccts_export.csv");
+        const cctsCsvPath = join(process.cwd(), "test-data/ccts_export.csv");
         if (existsSync(cctsCsvPath)) {
           cctsFile = cctsCsvPath;
           cctsSource = "auto-detected";
           console.log(
-            `🔍 Auto-detected CCTs performance optimization file: ${cctsCsvPath}`
+            `🔍 Auto-detected CCTs performance optimization file: ${cctsCsvPath}`,
           );
         }
       } else if (cctsFile) {
@@ -495,7 +496,7 @@ program
       } else {
         console.log(`   - CCTs Performance File: not available`);
         console.log(
-          `   - CCTs Source: none (will continue without performance optimization)`
+          `   - CCTs Source: none (will continue without performance optimization)`,
         );
       }
 
@@ -512,10 +513,10 @@ program
         console.log(`Successful: ${result.successCount}`);
         console.log(`Errors: ${result.errorCount}`);
         console.log(
-          `Success Rate: ${((result.successCount / result.totalRecords) * 100).toFixed(1)}%`
+          `Success Rate: ${((result.successCount / result.totalRecords) * 100).toFixed(1)}%`,
         );
         console.log(
-          `Processing Time: ${(result.processingTime / 1000).toFixed(2)} seconds`
+          `Processing Time: ${(result.processingTime / 1000).toFixed(2)} seconds`,
         );
 
         if (result.errorCsvPath) {
@@ -529,10 +530,10 @@ program
         console.log("");
         console.log("📈 Performance Analysis:");
         console.log(
-          `   - Average time per record: ${avgProcessingTime.toFixed(2)}ms`
+          `   - Average time per record: ${avgProcessingTime.toFixed(2)}ms`,
         );
         console.log(
-          `   - Records per second: ${(1000 / avgProcessingTime).toFixed(1)}`
+          `   - Records per second: ${(1000 / avgProcessingTime).toFixed(1)}`,
         );
 
         if (successRate === 100) {
@@ -541,7 +542,7 @@ program
           console.log("✅ Excellent! Very high success rate.");
           if (result.errorCsvPath) {
             console.log(
-              "💡 Review the few errors in the error report for event data quality improvements."
+              "💡 Review the few errors in the error report for event data quality improvements.",
             );
           }
         } else if (successRate >= 80) {
@@ -549,12 +550,12 @@ program
           console.log("💡 Recommendations:");
           console.log("   - Check error report for common patterns");
           console.log(
-            "   - Validate CSV event file data format and completeness"
+            "   - Validate CSV event file data format and completeness",
           );
           console.log("   - Consider data cleaning before event simulation");
         } else if (successRate >= 50) {
           console.log(
-            "⚠️  Moderate success rate. Significant errors occurred."
+            "⚠️  Moderate success rate. Significant errors occurred.",
           );
           console.log("💡 Recommendations:");
           console.log("   - Review error report for systematic issues");
@@ -566,10 +567,10 @@ program
           console.log("💡 Critical Recommendations:");
           console.log("   - Verify Strapi server is running and accessible");
           console.log(
-            "   - Check STRAPI_BASE_URL and STRAPI_TOKEN configuration"
+            "   - Check STRAPI_BASE_URL and STRAPI_TOKEN configuration",
           );
           console.log(
-            "   - Review CSV event file data format matches expected schema"
+            "   - Review CSV event file data format matches expected schema",
           );
           console.log("   - Check network connectivity and server resources");
           console.log("   - Try sequential processing mode for debugging");
@@ -586,7 +587,7 @@ program
           {
             filePath: csvPath,
             duration: Date.now() - simulationStartTime,
-          }
+          },
         );
         console.error(`\n${errorMessage}`);
         process.exit(1);
@@ -601,7 +602,7 @@ program
 program
   .command("validate-dump")
   .description(
-    "Validate database dump workflow - check PostgreSQL tools, database connection, and existing backup files"
+    "Validate database dump workflow - check PostgreSQL tools, database connection, and existing backup files",
   )
   .action(async () => {
     console.log("🔍 Validating database dump workflow...\n");

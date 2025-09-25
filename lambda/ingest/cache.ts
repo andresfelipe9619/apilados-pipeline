@@ -159,6 +159,7 @@ export class CacheManager {
 
       console.log(`[CACHE] Loaded ${totalLoaded} ${endpoint} entities`);
     } catch (error) {
+      console.log(error);
       const errorMsg = formatError(error, { endpoint, fieldName });
       console.error(`[CACHE] Failed to load ${endpoint}:`, errorMsg);
       throw new Error(`Failed to pre-cache ${endpoint}: ${errorMsg}`);
