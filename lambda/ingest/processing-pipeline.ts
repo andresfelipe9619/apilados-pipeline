@@ -19,6 +19,7 @@ import { formatError, normalizeHeaders, toBoolean, toNumber } from "./utils";
 import { CacheManager } from "./cache";
 import { EntityManager } from "./entities";
 import { AxiosInstance } from "axios";
+import { logger } from "bs-logger";
 
 /**
  * Phase 1: CSV Analysis
@@ -845,8 +846,10 @@ export class BatchProcessingPhase {
         promedio_modulos: row.promedio_modulos,
       },
     });
+    console.log("Participation created RESPONSE:", participationResponse.data);
 
     const participationId = participationResponse.data.data.id;
+    logger.info(`Participation created: ${participationId}`);
 
     // Create related records in parallel
     const creationPromises: Promise<unknown>[] = [];
