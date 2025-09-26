@@ -252,8 +252,8 @@ export class EntityCreationPhase {
     console.time("Entity Creation Phase");
 
     try {
-      // Step 1: Load independent entities in parallel
-      await this.loadIndependentEntities(cctsCsv);
+      // Step 1: Load independent entities in parallel (CCTs now handled by EntityManager)
+      await this.loadIndependentEntities();
 
       // Step 2: Create programs sequentially
       await this.createProgramsSequentially(uniqueSets.programas);
@@ -278,27 +278,20 @@ export class EntityCreationPhase {
   }
 
   /**
-   * Load entities that don't depend on others (CCTs, Surveys)
+   * Load entities that don't depend on others (Surveys, CCTs handled by EntityManager)
    */
-  private async loadIndependentEntities(cctsCsv?: Readable): Promise<void> {
+  private async loadIndependentEntities(): Promise<void> {
     console.log("[STEP 1] Loading independent entities...");
 
-    const loadPromises = [
+    // Load surveys and initialize CCTs manager in parallel
+    await Promise.all([
       this.entityManager.precacheSimpleEntities("encuestas", "clave"),
-    ];
-
-    // Load CCTs if CSV is provided
-    if (cctsCsv) {
-      loadPromises.push(this.entityManager.loadCctsFromCsv(cctsCsv));
-    } else {
-      console.log("[CCT] No CCT CSV provided, skipping CCT loading");
-    }
-
-    await Promise.all(loadPromises);
+      this.entityManager.initializeCCTsManager(),
+    ]);
 
     const stats = this.cacheManager.getCacheStats();
     console.log(`[CACHE] Surveys loaded: ${stats.encuestas}`);
-    console.log(`[CACHE] CCTs loaded: ${stats.ccts}`);
+    console.log(`[CACHE] CCTs manager initialized`);
   }
 
   /**

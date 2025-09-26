@@ -7,6 +7,7 @@ import { AxiosInstance } from "axios";
 import { Readable } from "node:stream";
 import csvParser from "csv-parser";
 import { CacheManager } from "./cache";
+import { CCTsManager } from "./ccts-manager";
 import {
   Dict,
   ProcessingConfig,
@@ -24,15 +25,18 @@ export class EntityManager {
   private api: AxiosInstance;
   private cacheManager: CacheManager;
   private processingConfig: ProcessingConfig;
+  private cctsManager?: CCTsManager;
 
   constructor(
     api: AxiosInstance,
     cacheManager: CacheManager,
     processingConfig: ProcessingConfig,
+    cctsManager?: CCTsManager,
   ) {
     this.api = api;
     this.cacheManager = cacheManager;
     this.processingConfig = processingConfig;
+    this.cctsManager = cctsManager;
   }
 
   /**
@@ -157,41 +161,46 @@ export class EntityManager {
   }
 
   /**
-   * Load CCTs from CSV file with graceful fallback
+   * Initialize CCTs manager (replaces loadCctsFromCsv)
    */
-  async loadCctsFromCsv(csvStream: Readable | null): Promise<void> {
-    if (!csvStream) {
-      console.log("[CCT] No CCT CSV file provided, continuing without CCTs");
+  async initializeCCTsManager(): Promise<void> {
+    if (!this.cctsManager) {
+      console.log("[CCT] No CCTs manager configured, continuing without CCTs optimization");
       return;
     }
 
     try {
-      const cctData: Array<{ clave: string; id: string }> = [];
-
-      await new Promise<void>((resolve, reject) => {
-        csvStream
-          .pipe(
-            csvParser({
-              separator: ",",
-              mapHeaders: ({ header }) => header.trim().toLowerCase(),
-            }),
-          )
-          .on("data", (row: { clave: string; id: string }) => {
-            if (row.clave && row.id) {
-              cctData.push({ clave: row.clave, id: row.id });
-            }
-          })
-          .on("end", resolve)
-          .on("error", reject);
-      });
-
-      await this.cacheManager.loadCctsFromCsv(cctData);
+      await this.cctsManager.initialize();
+      const stats = this.cctsManager.getCacheStats();
+      const metrics = this.cctsManager.getPerformanceMetrics();
+      
+      console.log(`[CCT] CCTs manager initialized: ${stats.mode} mode`);
+      console.log(`[CCT] Records available: ${metrics.recordCount}`);
+      console.log(`[CCT] Memory usage: ${Math.round(metrics.memoryUsage)}MB`);
     } catch (error) {
       console.warn(
-        "[CCT] Failed to load CCTs from CSV, continuing without CCTs:",
+        "[CCT] Failed to initialize CCTs manager, continuing without CCTs:",
         formatError(error),
       );
     }
+  }
+
+  /**
+   * Get or create CCT using memory-efficient approach
+   */
+  async getOrCreateCCT(clave: string): Promise<number | null> {
+    if (!this.cctsManager) {
+      // Fallback to direct API call if no CCTs manager
+      return await this.getOrCreate(
+        "ccts",
+        { clave },
+        null, // Don't create CCTs automatically
+        "ccts",
+        clave,
+      );
+    }
+
+    return await this.cctsManager.getOrCreateCCT(clave);
   }
 
   /**
@@ -360,15 +369,17 @@ export class EntityManager {
     console.time("Entity Creation Phase");
 
     try {
-      // Load CCTs and surveys in parallel
+      // Initialize CCTs manager and surveys in parallel
       await Promise.all([
-        this.loadCctsFromCsv(cctsCsv || null),
+        this.initializeCCTsManager(),
         this.precacheSimpleEntities("encuestas", "clave"),
       ]);
 
       const cacheStats = this.cacheManager.getCacheStats();
+      const cctsStats = this.cctsManager?.getCacheStats();
+      
       console.log(
-        `[CACHE] CCTs found: ${cacheStats.ccts}/${uniqueSets.ccts.size}`,
+        `[CACHE] CCTs available: ${cctsStats?.size || 0}/${uniqueSets.ccts.size} (${cctsStats?.mode || 'none'})`,
       );
       console.log(`[CACHE] Surveys found: ${cacheStats.encuestas}`);
 
@@ -389,6 +400,21 @@ export class EntityManager {
         console.warn("[WARN] Cache validation issues:", validation.issues);
       } else {
         console.log("[CACHE] Cache validation passed ✅");
+      }
+
+      // Log CCTs performance metrics if available
+      if (this.cctsManager) {
+        const metrics = this.cctsManager.getPerformanceMetrics();
+        console.log("[CCTs] Performance metrics:");
+        console.log(`  - Loading time: ${metrics.loadingTime}ms`);
+        console.log(`  - Memory usage: ${Math.round(metrics.memoryUsage)}MB`);
+        console.log(`  - Records: ${metrics.recordCount}`);
+        if (metrics.cacheHitRate !== undefined) {
+          console.log(`  - Cache hit rate: ${Math.round(metrics.cacheHitRate * 100)}%`);
+        }
+        if (metrics.apiCallsSaved !== undefined) {
+          console.log(`  - API calls saved: ${metrics.apiCallsSaved}`);
+        }
       }
     } catch (error) {
       console.error("[ERROR] Failed to initialize caches:", formatError(error));

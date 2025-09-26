@@ -15,6 +15,11 @@
     "dev-setup": "npx ts-node -e \"require('./dev-utils').setupTestEnvironment().then(r => console.log('Setup complete:', r)).catch(e => console.error('Error:', e))\"",
     "docs": "echo 'Documentation available in:' && echo '  - LOCAL_TESTING.md' && echo '  - ENVIRONMENT_VARIABLES.md' && echo '  - BUILD_CONFIGURATION.md' && echo '  - ../../README.md' && echo '  - ../../USAGE_EXAMPLES.md' && echo '  - ../../MIGRATION_GUIDE.md'",
     "help": "npm run docs",
+    "health": "npx ts-node -r tsconfig-paths/register health-cli.ts",
+    "health:check": "npm run health -- check",
+    "health:monitor": "npm run health -- monitor",
+    "health:metrics": "npm run health -- metrics",
+    "health:report": "npm run health -- report",
     "prebuild": "npm run clean",
     "pretest": "npm run build"
   },
@@ -28,6 +33,8 @@
     "dotenv": "^16.0.0",
     "commander": "^11.0.0",
     "@aws-sdk/client-s3": "^3.879.0",
+    "@aws-sdk/client-cloudwatch": "^3.879.0",
+    "@aws-sdk/client-sns": "^3.879.0",
     "inquirer": "^8.2.6"
   },
   "devDependencies": {

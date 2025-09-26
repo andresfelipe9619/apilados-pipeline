@@ -21,8 +21,10 @@ import {
 import {formatError} from "./utils";
 import {CacheManager} from "./cache";
 import {EntityManager} from "./entities";
+import {createCCTsManager} from "./ccts-manager";
 import {createFileInputHandler} from "./file-input-handlers";
 import {createErrorReporter, createS3ErrorReporter} from "./error-reporter";
+import {createHealthMonitor, HealthMonitor} from "./health-monitor";
 import {MigrationEngine} from "./migration-engine";
 
 const s3 = new S3Client({});
@@ -40,6 +42,9 @@ let cacheManager: CacheManager;
 // Entity manager - will be initialized with API client and cache manager
 let entityManager: EntityManager;
 
+// Health monitor - will be initialized with environment-specific configuration
+let healthMonitor: HealthMonitor;
+
 
 /**
  * Initialize configuration and components for data processing
@@ -52,6 +57,7 @@ function initializeConfiguration(
     cacheManager: CacheManager;
     entityManager: EntityManager;
     errorReporter: ErrorReporter;
+    healthMonitor: HealthMonitor;
 } {
     // Load environment configuration
     globalConfig = loadEnvironmentConfig();
@@ -87,8 +93,15 @@ function initializeConfiguration(
     // Initialize cache manager
     cacheManager = new CacheManager(api);
 
-    // Initialize entity manager
-    entityManager = new EntityManager(api, cacheManager, processingConfig);
+    // Initialize CCTs manager with environment-specific configuration
+    const environmentType = executionMode === 'aws' ? 'production' : 'local';
+    const cctsManager = createCCTsManager(api, environmentType, processingConfig);
+
+    // Initialize entity manager with CCTs manager
+    entityManager = new EntityManager(api, cacheManager, processingConfig, cctsManager);
+
+    // Initialize health monitor
+    healthMonitor = createHealthMonitor(environmentType, executionMode, api);
 
     // Initialize error reporter based on execution mode
     let errorReporter: ErrorReporter;
@@ -118,6 +131,7 @@ function initializeConfiguration(
         cacheManager,
         entityManager,
         errorReporter,
+        healthMonitor,
     };
 }
 
@@ -162,8 +176,13 @@ export const handler: S3Handler = async (event: S3Event): Promise<void> => {
         }
 
         // Initialize all components
-        const {api, cacheManager, entityManager, errorReporter} =
+        const {api, cacheManager, entityManager, errorReporter, healthMonitor} =
             initializeConfiguration(executionMode, localConfig);
+
+        // Perform initial health check
+        console.log("🏥 Performing initial health check...");
+        const initialHealth = await healthMonitor.performHealthCheck();
+        console.log(`🏥 Initial health status: ${initialHealth.overall}`);
 
         // Create file input handler
         const fileHandler = createFileInputHandler(event, localConfig);
@@ -191,12 +210,37 @@ export const handler: S3Handler = async (event: S3Event): Promise<void> => {
         );
 
         const totalTime = Date.now() - startTime;
+        
+        // Record performance metrics
+        const memoryUsage = process.memoryUsage();
+        healthMonitor.recordPerformanceMetrics({
+            executionTime: totalTime,
+            memoryUsage: {
+                used: memoryUsage.heapUsed / 1024 / 1024,
+                total: memoryUsage.heapTotal / 1024 / 1024,
+                percentage: (memoryUsage.heapUsed / memoryUsage.heapTotal) * 100
+            },
+            recordsProcessed: result.totalRecords,
+            successRate: (result.successCount / result.totalRecords) * 100,
+            errorRate: (result.errorCount / result.totalRecords) * 100,
+            apiCallsCount: result.totalRecords, // Approximate
+            cacheHitRate: entityManager.getCacheStats ? entityManager.getCacheStats().hitRate : undefined
+        });
+
+        // Perform final health check
+        console.log("🏥 Performing final health check...");
+        const finalHealth = await healthMonitor.performHealthCheck();
+        
+        // Generate health report
+        await healthMonitor.generateHealthReport();
+
         console.log(
             `🎉 Lambda execution completed successfully in ${Math.round(totalTime / 1000)}s`,
         );
         console.log(
             `   → Migration result: ${result.successCount}/${result.totalRecords} successful`,
         );
+        console.log(`🏥 Final health status: ${finalHealth.overall}`);
 
         // Log success for AWS Lambda
         console.log(
@@ -240,7 +284,7 @@ export async function runLocal(
         console.log(`📋 Detected execution mode: ${executionMode}`);
 
         // Initialize all components
-        const {api, cacheManager, entityManager, errorReporter} =
+        const {api, cacheManager, entityManager, errorReporter, healthMonitor} =
             initializeConfiguration(executionMode, localConfig);
 
         // Override processing config if provided
@@ -268,6 +312,13 @@ export async function runLocal(
         const participationsCsv = await fileHandler.getParticipationsCsv();
         const cctsCsv = await fileHandler.getCctsCsv(); // Optional performance optimization
 
+        // Perform initial health check for local execution
+        if (executionMode === 'local') {
+            console.log("🏥 Performing health check...");
+            const health = await healthMonitor.performHealthCheck();
+            console.log(`🏥 Health status: ${health.overall}`);
+        }
+
         // Execute data processing
         const result = await migrationEngine.processData(
             participationsCsv,
@@ -275,6 +326,23 @@ export async function runLocal(
         );
 
         const totalTime = Date.now() - startTime;
+        
+        // Record performance metrics for local execution
+        const memoryUsage = process.memoryUsage();
+        healthMonitor.recordPerformanceMetrics({
+            executionTime: totalTime,
+            memoryUsage: {
+                used: memoryUsage.heapUsed / 1024 / 1024,
+                total: memoryUsage.heapTotal / 1024 / 1024,
+                percentage: (memoryUsage.heapUsed / memoryUsage.heapTotal) * 100
+            },
+            recordsProcessed: result.totalRecords,
+            successRate: (result.successCount / result.totalRecords) * 100,
+            errorRate: (result.errorCount / result.totalRecords) * 100,
+            apiCallsCount: result.totalRecords, // Approximate
+            cacheHitRate: entityManager.getCacheStats ? entityManager.getCacheStats().hitRate : undefined
+        });
+
         console.log(
             `🎉 Local execution completed successfully in ${Math.round(totalTime / 1000)}s`,
         );

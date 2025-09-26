@@ -50,10 +50,11 @@ This document describes all environment variables supported by the enhanced inge
 - **Example**: `PARTICIPATIONS_CSV_FILE=data/apilado_universal.csv`
 - **Note**: When this is set, the lambda will automatically use local mode
 
-#### `CCTS_CSV_FILE`
+#### `CCTS_CSV_FILE` or `CCTS_LOCAL_PATH`
 - **Description**: Path to the CCTs CSV file for local processing (optional)
 - **Example**: `CCTS_CSV_FILE=data/ccts_export.csv`
 - **Note**: If not provided or file doesn't exist, processing continues without CCTs
+- **Compatibility**: `CCTS_LOCAL_PATH` is the new preferred variable name
 
 #### `OUTPUT_PATH`
 - **Description**: Path for error report output in local mode
@@ -71,6 +72,52 @@ This document describes all environment variables supported by the enhanced inge
 - **Description**: S3 key prefix for filtering CSV files
 - **Example**: `S3_KEY_PREFIX=uploads/`
 - **Note**: Automatically set by CDK deployment
+
+### CCTs Management Configuration
+
+#### `CCTS_S3_BUCKET`
+- **Description**: S3 bucket containing CCTs data for production environments
+- **Example**: `CCTS_S3_BUCKET=production-data-bucket`
+- **Note**: Defaults to `BUCKET_NAME` if not specified
+
+#### `CCTS_S3_KEY`
+- **Description**: S3 key for CCTs CSV file
+- **Default**: `ccts_export.csv`
+- **Example**: `CCTS_S3_KEY=data/ccts_export.csv`
+
+#### `CCTS_USE_PRELOADING`
+- **Description**: Force CCTs pre-loading mode (overrides automatic detection)
+- **Values**: `true` or `false`
+- **Default**: Auto-detected based on environment and memory constraints
+- **Example**: `CCTS_USE_PRELOADING=false`
+
+#### `CCTS_MAX_MEMORY_MB`
+- **Description**: Maximum memory usage allowed for CCTs pre-loading (MB)
+- **Default**: `512` for production, `1024` for local
+- **Example**: `CCTS_MAX_MEMORY_MB=256`
+
+### Health Monitoring Configuration
+
+#### `HEALTH_ALERT_SNS_TOPIC`
+- **Description**: SNS topic ARN for health alerts in production
+- **Example**: `HEALTH_ALERT_SNS_TOPIC=arn:aws:sns:us-east-1:123456789012:pipeline-alerts`
+- **Note**: Required for production alerting
+
+#### `HEALTH_REPORTS_S3_BUCKET`
+- **Description**: S3 bucket for storing health reports
+- **Default**: Uses `BUCKET_NAME` if not specified
+- **Example**: `HEALTH_REPORTS_S3_BUCKET=production-health-reports`
+
+#### `HEALTH_CLOUDWATCH_NAMESPACE`
+- **Description**: CloudWatch namespace for health metrics
+- **Default**: `Apilados/Pipeline/{environment}`
+- **Example**: `HEALTH_CLOUDWATCH_NAMESPACE=MyApp/Pipeline/Production`
+
+#### `HEALTH_CHECKS_ENABLED`
+- **Description**: Enable/disable health checks
+- **Values**: `true` or `false`
+- **Default**: `true`
+- **Example**: `HEALTH_CHECKS_ENABLED=false`
 
 ## Environment Variable Precedence
 
