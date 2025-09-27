@@ -10,3 +10,5 @@ cdk.out
 dist
 lambda/ingest/test-data
 coverage
+/lambda/ingest/.env
+/lambda/ingest/strapi_db_2025-06-28.dump
