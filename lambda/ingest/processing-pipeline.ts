@@ -816,7 +816,7 @@ export class BatchProcessingPhase {
 
       if (existingParticipation.data.data.length > 0) {
         console.log(
-          "Participation already exists for this participant and implementation. Skipping...",
+          `Participation already exists for this participant #${row.id} [participantId=${participantId}, implementationId=${implementacionId}]. Skipping...`,
         );
         return;
       }
